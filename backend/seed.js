@@ -3,14 +3,20 @@ const db = require('./db');
 const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 
-const createAdmin = (email, password, name) => {
+const createAdmin = (email, password, fullName) => { // Changed 'name' to 'fullName'
   const hashedPassword = bcrypt.hashSync(password, 10);
+  
+  // 1. Delete the user if they already exist from previous testing
+  db.prepare('DELETE FROM users WHERE email = ?').run(email);
+
+  // 2. Insert the fresh admin user
   const stmt = db.prepare(`
-    INSERT OR IGNORE INTO users (id, email, password, name, isAdmin) 
+    INSERT INTO users (id, email, password, fullName, isAdmin) 
     VALUES (?, ?, ?, ?, 1)
   `);
-  stmt.run(uuidv4(), email, hashedPassword, name);
-  console.log(`Admin user ${email} seeded.`);
+  
+  stmt.run(uuidv4(), email, hashedPassword, fullName);
+  console.log(`Admin user ${email} seeded successfully.`);
 };
 
 // Use the passwords from your .env file

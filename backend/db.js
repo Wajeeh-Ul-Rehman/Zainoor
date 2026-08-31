@@ -10,7 +10,8 @@ db.exec(`
     fullName TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     phone TEXT,
-    password TEXT NOT NULL
+    password TEXT NOT NULL,
+    isAdmin INTEGER DEFAULT 0
   )
 `);
 

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useCartStore } from '@/stores/cartStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -16,7 +16,10 @@ const navLinks = [
 export default function Navbar() {
   const [scrolled, setScrolled] = useState(false);
   const location = useLocation();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const navigate = useNavigate();
+  
+  // Use `user` directly instead of `isAuthenticated`
+  const { user, logout } = useAuthStore();
   const { toggleCart, totalItems } = useCartStore();
   const { toggleMobileNav, openAuthModal } = useUIStore();
 
@@ -30,6 +33,11 @@ export default function Navbar() {
 
   const isHome = location.pathname === '/';
   const showTransparent = isHome && !scrolled;
+
+  const handleLogout = () => {
+    logout();
+    // navigate('/login');
+  };
 
   return (
     <nav
@@ -100,22 +108,24 @@ export default function Navbar() {
               )}
             </button>
 
-            {/* Auth */}
-            {isAuthenticated ? (
+            {/* Auth - Checked via user object presence */}
+            {user ? (
               <div className="hidden lg:flex items-center gap-3">
                 <Link
-                  to={user?.isAdmin ? '/admin' : '/dashboard'}
+                  to={user.isAdmin ? '/admin' : '/dashboard'}
                   className={`font-body text-sm transition-colors ${
                     showTransparent ? 'text-white' : 'text-black'
                   } hover:opacity-70`}
                 >
-                  {user?.isAdmin ? 'Dashboard' : 'My Account'}
+                  {user.isAdmin ? 'Admin Dashboard' : 'My Account'}
                 </Link>
                 <button
-                  onClick={logout}
+                  onClick={handleLogout}
+                  
                   className={`font-body text-sm transition-colors ${
                     showTransparent ? 'text-white' : 'text-black'
                   } hover:opacity-70`}
+                  
                 >
                   Logout
                 </button>

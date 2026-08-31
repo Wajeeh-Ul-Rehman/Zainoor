@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
+const { googleLogin } = require('../controllers/authController');
 
 // Diagnostic logs to verify everything imported properly
 console.log("Loading auth routes. Controller status:", {
@@ -17,6 +18,7 @@ router.post('/register', authController.register);
 router.post('/login', authController.login);
 router.post('/logout', authController.logout);
 router.put('/profile/:userId', authController.updateProfile);
+router.post('/google', googleLogin);
 
 // History routes
 router.get('/users/all/history', authController.getAllUsersWithHistory);

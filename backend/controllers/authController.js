@@ -58,14 +58,70 @@ exports.login = (req, res) => {
         res.status(200).json({
             message: "Login successful",
             user: {
-                id: user.id, // Will return the 6-character ID
+                id: user.id, 
                 fullName: user.fullName,
                 email: user.email,
-                phone: user.phone || undefined
+                phone: user.phone || undefined,
+                isAdmin: user.isAdmin === 1 // <-- THIS WAS MISSING FROM THE BACKEND RESPONSE
             }
         });
     } catch (err) {
         res.status(500).json({ message: "Server error", error: err.message });
+    }
+};
+
+// AGoogle Sign-In
+
+exports.googleLogin = async (req, res) => {
+    const { credential } = req.body; // Google ID token from frontend
+
+    if (!credential) {
+        return res.status(400).json({ message: "Google credential is required" });
+    }
+
+    try {
+        // Verify the Google ID token using Google's public tokeninfo endpoint
+        const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
+        const googleData = await response.json();
+
+        if (!response.ok || !googleData.email) {
+            return res.status(401).json({ message: "Invalid Google token" });
+        }
+
+        const { email, name, sub: googleId } = googleData;
+
+        // Check if user already exists in SQLite
+        let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+
+        if (!user) {
+            // If user doesn't exist, create them
+            const userId = 'g_' + googleId.substring(0, 10); // generate unique ID
+            
+            // Check if this email should automatically be an admin
+            const ADMIN_EMAILS = ['abdullahwajeeh074@gmail.com', 'support@zainoor.com.pk'];
+            const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase()) ? 1 : 0;
+
+            const stmt = db.prepare(`
+                INSERT INTO users (id, fullName, email, password, isAdmin) 
+                VALUES (?, ?, ?, ?, ?)
+            `);
+            stmt.run(userId, name, email, 'GOOGLE_AUTH_USER', isAdmin);
+
+            user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+        }
+
+        res.status(200).json({
+            message: "Google login successful",
+            user: {
+                id: user.id,
+                fullName: user.fullName,
+                email: user.email,
+                phone: user.phone || undefined,
+                isAdmin: user.isAdmin === 1
+            }
+        });
+    } catch (err) {
+        res.status(500).json({ message: "Google authentication failed", error: err.message });
     }
 };
 

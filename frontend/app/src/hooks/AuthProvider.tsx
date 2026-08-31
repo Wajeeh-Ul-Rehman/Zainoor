@@ -12,6 +12,7 @@ export interface User {
 
 interface AuthResult {
   success: boolean;
+  user?: User;
   error?: string;
 }
 
@@ -43,10 +44,6 @@ const STORAGE_KEY = 'zainoor_user';
 // UPDATED BACKEND URL TO PORT 5001
 // ==========================================
 const BACKEND_URL = 'http://localhost:5001/api/auth';
-
-// TEMP: client-side admin check for the demo. Move this to your backend —
-// the API that issues the session should decide isAdmin, not the browser.
-const ADMIN_EMAILS = ['abdullahwajeeh074@gmail.com', 'support@zainoor.com.pk'];
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -94,12 +91,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fullName: data.user?.fullName || email.split('@')[0],
         email: email.trim().toLowerCase(),
         phone: data.user?.phone || undefined,
-        isAdmin: ADMIN_EMAILS.includes(email.trim().toLowerCase()),
+        isAdmin: Boolean(data.user?.isAdmin),
       };
 
       setUser(loggedInUser);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(loggedInUser));
-      return { success: true };
+      return { success: true, user: loggedInUser }; // Return the user object here
     } catch (err: any) {
       return { success: false, error: 'Cannot connect to server. Ensure your backend is running.' };
     }
@@ -127,12 +124,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         fullName,
         email: email.trim().toLowerCase(),
         phone,
-        isAdmin: ADMIN_EMAILS.includes(email.trim().toLowerCase()),
+        isAdmin: Boolean(data.user?.isAdmin),
       };
 
       setUser(newUser);
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newUser));
-      return { success: true };
+      return { success: true, user: newUser };
     } catch (err: any) {
       return { success: false, error: 'Cannot connect to server. Ensure your backend is running.' };
     }

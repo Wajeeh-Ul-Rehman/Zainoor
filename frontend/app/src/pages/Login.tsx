@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Eye, EyeOff, AlertTriangle, CheckCircle2, ArrowLeft, ArrowRight } from "lucide-react";
 import { useAuthStore } from '@/stores/authStore';
 import { useNavigate } from 'react-router-dom';
@@ -140,15 +140,25 @@ export default function ZainoorAuthPage() {
     return Object.keys(e).length === 0;
   };
 
-  const submitLogin = (ev) => {
+  const submitLogin = async (ev) => {
     ev.preventDefault();
     if (!validateLogin()) return;
+
     setSubmitting(true);
-    setTimeout(() => {
-      setSubmitting(false);
-      setView("success");
-    }, 900);
-  };
+    const result = await login(loginEmail, loginPassword);
+    setSubmitting(false);
+
+    if (result.success && result.user) {
+      // Routes based on the database isAdmin flag
+      if (result.user.isAdmin) {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard'); // Or your standard user route
+      }
+    } else {
+      setErrors({ email: result.error || "Invalid email or password" });
+    }
+};
 
   const submitSignup = (ev) => {
     ev.preventDefault();
@@ -411,6 +421,38 @@ export default function ZainoorAuthPage() {
 }
 
 function SocialRow() {
+  const { googleLogin } = useAuthStore();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    /* global google */
+    if (window.google) {
+      google.accounts.id.initialize({
+        client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com", // Replace with your Google Cloud Console Client ID
+        callback: async (response: any) => {
+          const result = await googleLogin(response.credential);
+          if (result.success && result.user) {
+            if (result.user.isAdmin) {
+              navigate('/admin-dashboard');
+            } else {
+              navigate('/dashboard/orders');
+            }
+          } else {
+            alert(result.error || "Google login failed");
+          }
+        },
+      });
+    }
+  }, [googleLogin, navigate]);
+
+  const handleGoogleClick = () => {
+    if (window.google) {
+      google.accounts.id.prompt(); // Opens Google One Tap / Sign-in popup
+    } else {
+      alert("Google script is still loading. Please try again.");
+    }
+  };
+
   return (
     <div className="mt-6">
       <div className="flex items-center gap-3 mb-4">
@@ -420,8 +462,8 @@ function SocialRow() {
       </div>
       <button
         type="button"
-        onClick={() => alert("Connect this to a real OAuth provider (e.g. Firebase/Supabase Auth) to enable Google sign-in.")}
-        className="w-full flex items-center justify-center gap-2 border border-neutral-300 py-2.5 font-body text-sm text-neutral-700 hover:border-neutral-900 hover:text-neutral-900"
+        onClick={handleGoogleClick}
+        className="w-full flex items-center justify-center gap-2 border border-neutral-300 py-2.5 font-body text-sm text-neutral-700 hover:border-neutral-900 hover:text-neutral-900 transition-colors"
       >
         <span className="font-display text-base leading-none">G</span> Continue with Google
       </button>
