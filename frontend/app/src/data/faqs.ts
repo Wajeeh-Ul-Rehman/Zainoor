@@ -4,7 +4,7 @@ export const faqs: FAQ[] = [
   {
     id: 'faq-1',
     question: 'What sizes are available?',
-    answer: 'We offer sizes ranging from XS to XXL across most of our collection. Each product page includes a detailed size guide to help you find the perfect fit.',
+    answer: 'We offer sizes ranging from S to XL across most of our collection. Each product page includes a detailed size guide to help you find the perfect fit.',
     category: 'Products & Sizing',
   },
   {
@@ -22,7 +22,7 @@ export const faqs: FAQ[] = [
   {
     id: 'faq-4',
     question: 'Do you offer custom stitching?',
-    answer: 'Yes, we offer custom stitching services for select items. You can provide your measurements during checkout, and our tailoring team will create a garment specifically fitted to you. Additional charges may apply.',
+    answer: 'Yes, we offer custom stitching services for select items. You can provide your measurements via mail or our Contact Number (+92 337 6831521) and our tailoring team will create a garment specifically fitted to you. Additional charges may apply.',
     category: 'Products & Sizing',
   },
   {
@@ -34,19 +34,19 @@ export const faqs: FAQ[] = [
   {
     id: 'faq-6',
     question: 'What payment methods do you accept?',
-    answer: 'We accept JazzCash, EasyPaisa, Upaisa, Sadapay, NayaPay, bank transfers, and all major credit/debit cards including PayPak, Visa, and Mastercard. Cash on Delivery is also available nationwide.',
+    answer: 'We accept Cash on Delivery nationwide.',
     category: 'Orders & Shipping',
   },
   {
     id: 'faq-7',
     question: 'Is Cash on Delivery available?',
-    answer: 'Yes, Cash on Delivery (COD) is available across Pakistan for orders up to Rs. 50,000. A small COD fee of Rs. 150 may apply.',
+    answer: 'Yes, Cash on Delivery (COD) is available across Pakistan for orders up to Rs. 50,000. A small COD fee may apply.',
     category: 'Orders & Shipping',
   },
   {
     id: 'faq-8',
     question: 'How long does delivery take?',
-    answer: 'Delivery within major cities (Karachi, Lahore, Islamabad) takes 2-3 business days. Other cities typically receive orders within 4-7 business days. Remote areas may take up to 10 business days.',
+    answer: 'Delivery within major cities (Karachi, Lahore, Islamabad) takes 1-2 business weeks. Other cities typically receive orders within 14 business days. Remote areas may take up to 14 business days too.',
     category: 'Orders & Shipping',
   },
   {
@@ -64,13 +64,13 @@ export const faqs: FAQ[] = [
   {
     id: 'faq-11',
     question: 'How do I return an item?',
-    answer: 'Contact our support team to initiate a return. We will arrange a pickup from your address. Once the item is received and inspected, your refund or exchange will be processed within 5-7 business days.',
+    answer: 'Contact our support team to initiate a return. We will arrange a pickup from your address. Once the item is received and inspected, your refund or exchange will be processed within 14 business days.',
     category: 'Returns & Refunds',
   },
   {
     id: 'faq-12',
     question: 'How long do refunds take?',
-    answer: 'Refunds are processed within 5-7 business days after we receive the returned item. The amount will be credited to your original payment method or bank account.',
+    answer: 'Refunds are processed within a month after we receive the returned item. The amount will be credited to your original payment method or bank account.',
     category: 'Returns & Refunds',
   },
   {
@@ -82,7 +82,7 @@ export const faqs: FAQ[] = [
   {
     id: 'faq-14',
     question: 'How can I track my order?',
-    answer: 'Once your order is shipped, you will receive a tracking number via SMS and email. You can use this number on our website or the courier\'s website to track your package in real-time.',
+    answer: 'Once your order is shipped, you will receive a tracking number in your user dashboard.',
     category: 'Orders & Shipping',
   },
   {
@@ -94,7 +94,7 @@ export const faqs: FAQ[] = [
   {
     id: 'faq-16',
     question: 'Is there a discount for bulk orders?',
-    answer: 'Yes, we offer special discounts for bulk orders of 10+ pieces. Contact our sales team at sales@zainoor.pk for a custom quote based on your requirements.',
+    answer: 'Yes, we offer special discounts for bulk orders of 10+ pieces. Contact our sales team at support@zainoor.com.pk for a custom quote based on your requirements.',
     category: 'Orders & Shipping',
   },
   {
@@ -118,7 +118,7 @@ export const faqs: FAQ[] = [
   {
     id: 'faq-20',
     question: 'How can I contact customer support?',
-    answer: 'You can reach our 24/7 customer support team via phone at +92 300 1234567, email at support@zainoor.pk, or through the contact form on our website. We typically respond within 2 hours.',
+    answer: 'You can reach our 24/7 customer support team via phone at +92 337 6831521, email at support@zainoor.com.pk, or through the contact form on our website. We typically respond within 2 hours.',
     category: 'Orders & Shipping',
   },
 ];

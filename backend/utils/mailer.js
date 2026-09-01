@@ -133,4 +133,33 @@ async function notifyNewSubmission(sub) {
   await notifyAdmins(`New Contact Inquiry: [${sub.subject}] — ${sub.name}`, html);
 }
 
-module.exports = { notifyAdmins, notifyNewUser, notifyNewOrder, notifyOrderCancelled, notifyNewSubmission };
+async function sendUserEmail(to, subject, html) {
+  try {
+    await transporter.sendMail({
+      from: `"Zainoor Support" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+      to,
+      subject,
+      html,
+    });
+  } catch (err) {
+    console.error('Failed to send user email:', err.message);
+  }
+}
+
+async function sendPasswordResetCode(email, code) {
+  const html = `
+    <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
+      <h2 style="color: #000;">Password Reset Code</h2>
+      <p>You requested a password reset for your Zainoor account. Here is your 5-digit code:</p>
+      <div style="background: #f4f4f4; padding: 20px; text-align: center; margin: 20px 0;">
+        <strong style="font-size: 32px; letter-spacing: 4px; color: #000;">${code}</strong>
+      </div>
+      <p style="color: #666; font-size: 14px;">This code will expire in 15 minutes.</p>
+      <p style="color: #666; font-size: 14px;">If you did not request this, please ignore this email.</p>
+    </div>
+  `;
+  await sendUserEmail(email, 'Your Zainoor Password Reset Code', html);
+}
+
+
+module.exports = {notifyAdmins, notifyNewUser, notifyNewOrder, notifyOrderCancelled, notifyNewSubmission, sendPasswordResetCode };

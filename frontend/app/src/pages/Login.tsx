@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { Eye, EyeOff, AlertTriangle, CheckCircle2, ArrowLeft, ArrowRight } from "lucide-react";
 import { useAuthStore } from '@/stores/authStore';
 import { useNavigate, Link } from 'react-router-dom';
+
 /* ---------------------------------------------------------------------- */
 /*  Helpers                                                                 */
 /* ---------------------------------------------------------------------- */
@@ -74,16 +75,6 @@ export default function ZainoorAuthPage() {
   const { login } = useAuthStore();
   const navigate = useNavigate();
 
-  const handleSubmit = async (e) => {
-  e.preventDefault();
-  const result = await login(email, password);
-  if (result.success) {
-    navigate('/dashboard');
-  } else {
-    alert('Invalid email or password');
-  }
-};
-
   const [mode, setMode] = useState("login"); // 'login' | 'signup'
   const [view, setView] = useState("form"); // 'form' | 'forgot' | 'success'
   const [submitting, setSubmitting] = useState(false);
@@ -104,9 +95,12 @@ export default function ZainoorAuthPage() {
   const [showSignupPw, setShowSignupPw] = useState(false);
   const [showConfirmPw, setShowConfirmPw] = useState(false);
 
-  // forgot password
+  // forgot password state
   const [forgotEmail, setForgotEmail] = useState("");
   const [forgotSent, setForgotSent] = useState(false);
+  const [resetCode, setResetCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [showNewPw, setShowNewPw] = useState(false);
 
   const [errors, setErrors] = useState({});
 
@@ -149,16 +143,15 @@ export default function ZainoorAuthPage() {
     setSubmitting(false);
 
     if (result.success && result.user) {
-      // Routes based on the database isAdmin flag
       if (result.user.isAdmin) {
         navigate('/admin');
       } else {
-        navigate('/dashboard'); // Or your standard user route
+        navigate('/dashboard'); 
       }
     } else {
       setErrors({ email: result.error || "Invalid email or password" });
     }
-};
+  };
 
   const submitSignup = (ev) => {
     ev.preventDefault();
@@ -170,18 +163,69 @@ export default function ZainoorAuthPage() {
     }, 900);
   };
 
-  const submitForgot = (ev) => {
+  const submitForgot = async (ev) => {
     ev.preventDefault();
     if (!forgotEmail.trim() || !EMAIL_RE.test(forgotEmail)) {
-      setErrors({ forgot: "Enter a valid email to reset your password." });
+      setErrors({ forgot: "Enter a valid email to receive a code." });
       return;
     }
     setErrors({});
     setSubmitting(true);
-    setTimeout(() => {
+    
+    try {
+      const res = await fetch('http://localhost:5001/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail })
+      });
+      if (res.ok) {
+        setForgotSent(true);
+      } else {
+        setErrors({ forgot: "Could not send code. Please try again." });
+      }
+    } catch (err) {
+      setErrors({ forgot: "Network error." });
+    } finally {
       setSubmitting(false);
-      setForgotSent(true);
-    }, 900);
+    }
+  };
+
+  const submitResetCode = async (ev) => {
+    ev.preventDefault();
+    const e = {};
+    if (!resetCode || resetCode.length !== 5) e.code = "Please enter the 5-digit code.";
+    if (!newPassword || newPassword.length < 8) e.newPassword = "Password must be at least 8 characters.";
+
+    if (Object.keys(e).length > 0) {
+      setErrors(e);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const res = await fetch('http://localhost:5001/api/auth/reset-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: forgotEmail, code: resetCode, newPassword })
+      });
+      const data = await res.json();
+      
+      if (res.ok) {
+        setView("form");
+        setMode("login");
+        setForgotSent(false);
+        setForgotEmail("");
+        setResetCode("");
+        setNewPassword("");
+        alert("Password reset successfully! You can now log in.");
+      } else {
+        setErrors({ code: data.message || "Invalid code." });
+      }
+    } catch (err) {
+      setErrors({ code: "Network error." });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const strength = passwordStrength(signupPassword);
@@ -372,20 +416,44 @@ export default function ZainoorAuthPage() {
               {!forgotSent ? (
                 <form onSubmit={submitForgot}>
                   <h1 className="font-display text-2xl text-neutral-900 mb-1">Reset your password</h1>
-                  <p className="font-body text-sm text-neutral-500 mb-6">Enter the email on your account and we'll send a reset link.</p>
+                  <p className="font-body text-sm text-neutral-500 mb-6">Enter the email on your account and we'll send a 5-digit reset code.</p>
                   <Field label="Email" error={errors.forgot}>
                     <input type="email" value={forgotEmail} onChange={(e) => setForgotEmail(e.target.value)} placeholder="you@example.com" className={inputBase.replace("pr-10", "pr-3")} />
                   </Field>
                   <button type="submit" disabled={submitting} className="w-full bg-neutral-900 text-white font-body text-sm tracking-wide py-3 hover:bg-neutral-800 disabled:opacity-50">
-                    {submitting ? "Sending…" : "Send reset link"}
+                    {submitting ? "Sending…" : "Send 5-digit code"}
                   </button>
                 </form>
               ) : (
-                <div className="text-center py-6">
-                  <CheckCircle2 size={36} className="text-emerald-700 mx-auto mb-4" strokeWidth={1.5} />
-                  <h2 className="font-display text-xl text-neutral-900 mb-1">Check your inbox</h2>
-                  <p className="font-body text-sm text-neutral-500">If an account exists for {forgotEmail}, a reset link is on its way.</p>
-                </div>
+                <form onSubmit={submitResetCode} className="fade-in">
+                  <h1 className="font-display text-2xl text-neutral-900 mb-1">Enter Reset Code</h1>
+                  <p className="font-body text-sm text-neutral-500 mb-6">We sent a 5-digit code to {forgotEmail}.</p>
+
+                  <Field label="5-Digit Code" error={errors.code}>
+                    <input
+                      type="text"
+                      maxLength={5}
+                      value={resetCode}
+                      onChange={(e) => setResetCode(e.target.value.replace(/\D/g, ''))}
+                      placeholder="12345"
+                      className={inputBase.replace("pr-10", "pr-3") + " text-center tracking-widest text-xl"}
+                    />
+                  </Field>
+
+                  <Field label="New Password" error={errors.newPassword}>
+                    <PasswordInput
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      show={showNewPw}
+                      setShow={setShowNewPw}
+                      placeholder="At least 8 characters"
+                    />
+                  </Field>
+
+                  <button type="submit" disabled={submitting} className="w-full bg-neutral-900 text-white font-body text-sm tracking-wide py-3 hover:bg-neutral-800 disabled:opacity-50">
+                    {submitting ? "Resetting…" : "Reset password"}
+                  </button>
+                </form>
               )}
             </div>
           )}
@@ -430,8 +498,8 @@ function SocialRow() {
     /* global google */
     if (window.google) {
       google.accounts.id.initialize({
-        client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com", // Replace with your Google Cloud Console Client ID
-        callback: async (response: any) => {
+        client_id: "YOUR_GOOGLE_CLIENT_ID.apps.googleusercontent.com", 
+        callback: async (response) => {
           const result = await googleLogin(response.credential);
           if (result.success && result.user) {
             if (result.user.isAdmin) {
@@ -449,7 +517,7 @@ function SocialRow() {
 
   const handleGoogleClick = () => {
     if (window.google) {
-      google.accounts.id.prompt(); // Opens Google One Tap / Sign-in popup
+      google.accounts.id.prompt(); 
     } else {
       alert("Google script is still loading. Please try again.");
     }

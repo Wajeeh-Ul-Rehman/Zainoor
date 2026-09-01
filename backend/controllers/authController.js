@@ -2,6 +2,7 @@ const db = require('../db');
 const bcrypt = require('bcryptjs');
 const { generateUserId } = require('../utils/idGenerator');
 const { notifyNewUser } = require('../utils/mailer');
+const { sendPasswordResetCode } = require('../utils/mailer');
 
 // REGISTER
 exports.register = (req, res) => {
@@ -279,6 +280,52 @@ exports.updateProfile = (req, res) => {
  
         const updated = db.prepare('SELECT id, fullName, email, phone FROM users WHERE id = ?').get(userId);
         res.status(200).json({ message: "Profile updated", user: updated });
+    } catch (err) {
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
+};
+
+// POST /api/auth/forgot-password
+exports.forgotPassword = async (req, res) => {
+    const { email } = req.body;
+    try {
+        const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+        if (!user) {
+            // Return success anyway to prevent email enumeration (security best practice)
+            return res.status(200).json({ message: "If an account exists, a code was sent." });
+        }
+
+        // Generate 5-digit code (10000 to 99999)
+        const code = Math.floor(10000 + Math.random() * 90000).toString();
+        const expiry = Date.now() + 15 * 60 * 1000; // 15 minutes from now
+
+        db.prepare('UPDATE users SET resetCode = ?, resetCodeExpiry = ? WHERE id = ?')
+          .run(code, expiry, user.id);
+
+        await sendPasswordResetCode(email, code);
+
+        res.status(200).json({ message: "Code sent successfully." });
+    } catch (err) {
+        res.status(500).json({ message: "Server error", error: err.message });
+    }
+};
+
+// POST /api/auth/reset-password
+exports.resetPassword = (req, res) => {
+    const { email, code, newPassword } = req.body;
+    try {
+        const user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+        if (!user) return res.status(404).json({ message: "User not found" });
+
+        if (user.resetCode !== code || Date.now() > user.resetCodeExpiry) {
+            return res.status(400).json({ message: "Invalid or expired reset code." });
+        }
+
+        const hashedPassword = bcrypt.hashSync(newPassword, 10);
+        db.prepare('UPDATE users SET password = ?, resetCode = NULL, resetCodeExpiry = NULL WHERE id = ?')
+          .run(hashedPassword, user.id);
+
+        res.status(200).json({ message: "Password updated successfully." });
     } catch (err) {
         res.status(500).json({ message: "Server error", error: err.message });
     }

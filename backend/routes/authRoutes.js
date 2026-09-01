@@ -28,4 +28,9 @@ router.get('/users/:userId/history', authController.getUserWithHistory);
 router.delete('/users/:userId', authController.deleteUser);         // Delete Single User
 router.post('/users/delete-bulk', authController.deleteUsersBulk);   // Delete Bulk Users
 
+//Reset Passwords 
+// Add these two lines:
+router.post('/forgot-password', authController.forgotPassword);
+router.post('/reset-password', authController.resetPassword);
+
 module.exports = router;

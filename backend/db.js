@@ -80,4 +80,10 @@ db.exec(`
   )
 `);
 
+try {
+  db.exec(`ALTER TABLE users ADD COLUMN resetCode TEXT`);
+  db.exec(`ALTER TABLE users ADD COLUMN resetCodeExpiry INTEGER`);
+} catch (err) {// Columns already exist — safe to ignore
+}
+
 module.exports = db;  
