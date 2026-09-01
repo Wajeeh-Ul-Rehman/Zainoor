@@ -1,8 +1,9 @@
 import { useState } from 'react';
+import { API_URL } from '../../config';
 import { Link } from 'react-router-dom';
 import type { Product } from '@/types';
 
-const UPLOADS_BASE = 'http://localhost:5001'; // Match your backend port
+const UPLOADS_BASE = API_URL;
 
 interface ProductCardProps {
   product: Product & { title?: string; images?: string[] };

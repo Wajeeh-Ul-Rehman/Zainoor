@@ -1,3 +1,4 @@
+import { API_URL } from '../../config';
 import { create } from 'zustand';
 import { socket } from '@/lib/socket';
 
@@ -41,7 +42,7 @@ export interface Order {
   statusHistory: OrderStatusEvent[];
 }
 
-const API_BASE = 'http://localhost:5001/api/orders';
+const API_BASE = `${API_URL}/api/orders`;
 
 interface ApiResult {
   success: boolean;

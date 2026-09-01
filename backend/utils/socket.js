@@ -5,9 +5,14 @@ let io;
 function initSocket(httpServer) {
   io = new Server(httpServer, {
     cors: {
-      origin: 'http://localhost:3000',
-      methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-    },
+  origin: [
+    'http://localhost:3000',
+    'https://zainoor.com.pk',
+    'https://www.zainoor.com.pk'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  credentials: true
+    }
   });
 
   io.on('connection', (socket) => {

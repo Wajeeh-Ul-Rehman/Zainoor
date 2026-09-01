@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { API_URL } from '../../config';
 import type { Product } from '@/types';
 import { useCartStore } from '@/stores/cartStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -31,7 +32,7 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
 
  let productImage = product?.image || (product as any)?.imageUrl || (product as any)?.images?.[0] || '';
   if (productImage.startsWith('/')) {
-    productImage = `http://localhost:5001${productImage}`;
+    productImage = `${API_URL}${productImage}`;
   }
 
   const [selectedSize, setSelectedSize] = useState(sizes.length > 0 ? sizes[0] : '');

@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useEffect, useState, ReactNode } from 'react';
+import { API_URL } from '../../config';
 
 export type AuthModalMode = 'login' | 'signup';
 
@@ -43,7 +44,7 @@ const STORAGE_KEY = 'zainoor_user';
 // ==========================================
 // UPDATED BACKEND URL TO PORT 5001
 // ==========================================
-const BACKEND_URL = 'http://localhost:5001/api/auth';
+const BACKEND_URL = `${API_URL}/api/auth`;
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);

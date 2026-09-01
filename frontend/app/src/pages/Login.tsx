@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { API_URL } from '../../config';
 import { Eye, EyeOff, AlertTriangle, CheckCircle2, ArrowLeft, ArrowRight } from "lucide-react";
 import { useAuthStore } from '@/stores/authStore';
 import { useNavigate, Link } from 'react-router-dom';
@@ -173,7 +174,7 @@ export default function ZainoorAuthPage() {
     setSubmitting(true);
     
     try {
-      const res = await fetch('http://localhost:5001/api/auth/forgot-password', {
+      const res = await fetch(`${API_URL}/api/auth/forgot-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail })
@@ -203,7 +204,7 @@ export default function ZainoorAuthPage() {
 
     setSubmitting(true);
     try {
-      const res = await fetch('http://localhost:5001/api/auth/reset-password', {
+      const res = await fetch(`${API_URL}/api/auth/reset-password`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: forgotEmail, code: resetCode, newPassword })

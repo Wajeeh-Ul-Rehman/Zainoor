@@ -1,3 +1,4 @@
+import { API_URL } from '../../config';
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '@/stores/cartStore';
 import { useAuthStore } from '@/stores/authStore';
@@ -69,7 +70,7 @@ export default function CartDrawer() {
                 let productImage = product.image || (product as any).imageUrl || (product as any).images?.[0] || '';
 
                 if (productImage.startsWith('/')) {
-                  productImage = `http://localhost:5001${productImage}`;
+                  productImage = `${API_URL}${productImage}`;
                 }
 
                 return (

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { API_URL } from '../../config';
 import {
   LayoutGrid, Package, ShoppingBag, Users, Inbox, Plus, X, Trash2, EyeOff, Eye, Tag,
   Search, ImagePlus, Download, TrendingUp, AlertTriangle, LogOut, CheckSquare,
@@ -9,7 +10,7 @@ import { useProductStore, type Product, type Sale } from '@/stores/productStore'
 import { useOrderStore, ORDER_STATUSES, type OrderStatus } from '@/stores/orderStore';
 import { useUserStore } from '@/stores/userStore';
 
-const UPLOADS_BASE = 'http://localhost:5001';
+const UPLOADS_BASE = API_URL;
 const CATEGORIES = ['Outerwear', 'Dresses', 'Tops', 'Bottoms', 'Accessories'];
 const rs = (n: number) => `Rs ${Number(n || 0).toLocaleString('en-US')}`;
 
@@ -448,7 +449,7 @@ function SaleModal({ product, onClose }: { product: Product; onClose: () => void
 export default function AdminDashboard() {
   const fetchSubmissions = async () => {
   try {
-    const res = await fetch('http://localhost:5001/api/submissions');
+    const res = await fetch(`${API_URL}/api/submissions`);
     const data = await res.json();
     if (res.ok) setSubmissions(data);
   } catch (err) {
@@ -544,7 +545,7 @@ export default function AdminDashboard() {
   const handleDeleteSubmission = async (id: string) => {
   if (!window.confirm('Delete this inquiry?')) return;
   try {
-    const res = await fetch(`http://localhost:5001/api/submissions/${id}`, { method: 'DELETE' });
+    const res = await fetch(`${API_URL}/api/submissions/${id}`, { method: 'DELETE' });
     if (res.ok) {
       setSubmissions((prev) => prev.filter((s) => s.id !== id));
       addToast('Submission deleted', 'success');

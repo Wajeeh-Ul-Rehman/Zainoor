@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-
+import { API_URL } from '../../config';
 export interface UserOrderSummary {
   orderId: string;
   orderDate: string;
@@ -18,7 +18,7 @@ export interface UserWithHistory {
   orders: UserOrderSummary[];
 }
 
-const API_BASE = 'http://localhost:5001/api/auth';
+const API_BASE = `${API_URL}/api/auth`;
 
 interface ApiResult {
   success: boolean;

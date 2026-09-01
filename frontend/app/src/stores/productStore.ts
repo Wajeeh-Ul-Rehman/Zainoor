@@ -1,3 +1,4 @@
+import { API_URL } from '../../config';
 import { create } from 'zustand';
 import { socket } from '@/lib/socket';
 
@@ -28,7 +29,7 @@ export interface Product {
   sale: Sale;
 }
 
-const API_BASE = 'http://localhost:5001/api/products';
+const API_BASE = `${API_URL}/api/products`;
 
 interface ApiResult {
   success: boolean;
@@ -66,7 +67,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
   // Fetches all products on page load/refresh
   fetchProducts: async () => {
     try {
-      const response = await fetch('http://localhost:5001/api/products');
+      const response = await fetch(`${API_URL}/api/products`);
       const parseProduct = (p: any) => ({
         ...p,
         images: typeof p.images === 'string' ? JSON.parse(p.images || '[]') : (p.images || []),
@@ -88,7 +89,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
   createProduct: async (productData: any) => {
     try {
-      const res = await fetch('http://localhost:5001/api/products', {
+      const res = await fetch(`${API_URL}/api/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -114,7 +115,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
 
   updateProduct: async (id: string, productData: any) => {
     try {
-      const res = await fetch(`http://localhost:5001/api/products/${id}`, {
+      const res = await fetch(`${API_URL}/api/products/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

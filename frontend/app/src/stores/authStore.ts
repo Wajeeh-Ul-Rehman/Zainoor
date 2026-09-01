@@ -1,7 +1,7 @@
 // frontend/app/src/stores/authStore.ts
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
-
+import { API_URL } from '../../config';
 
 interface User {
   id: string;
@@ -21,7 +21,7 @@ interface AuthState {
 
 
 
-const BACKEND_URL = 'http://localhost:5001/api/auth';
+const BACKEND_URL = `${API_URL}/api/auth`;
 
 
 export const useAuthStore = create<AuthState>()(

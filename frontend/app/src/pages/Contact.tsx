@@ -1,3 +1,4 @@
+import { API_URL } from '../../config';
 import { useState } from 'react';
 import type { FormEvent } from 'react';
 import { useUIStore } from '@/stores/uiStore';
@@ -16,7 +17,7 @@ export default function Contact() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const res = await fetch('http://localhost:5001/api/submissions', {
+      const res = await fetch(`${API_URL}/api/submissions`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),

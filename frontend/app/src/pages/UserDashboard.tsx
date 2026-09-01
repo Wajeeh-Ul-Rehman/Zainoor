@@ -1,3 +1,4 @@
+import { API_URL } from '../../config';
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
@@ -12,7 +13,7 @@ const tabs = [
   { id: 'settings', label: 'Settings' },
 ];
 
-const API_BASE = 'http://localhost:5001/api';
+const API_BASE = `${API_URL}/api`;
 
 // Once an order reaches one of these stages, the customer can no longer self-cancel.
 const CANCELLABLE_STATUSES = ['Pending', 'In Progress', 'Sent for Packing'];
@@ -81,7 +82,7 @@ export default function UserDashboard() {
   useEffect(() => {
     if (!user?.id) return;
     setLoadingOrders(true);
-    fetch(`http://localhost:5001/api/orders/user/${user.id}`)
+    fetch(`${API_URL}/api/orders/user/${user.id}`)
       .then(res => res.json())
       .then(data => {
         setOrders(data);
