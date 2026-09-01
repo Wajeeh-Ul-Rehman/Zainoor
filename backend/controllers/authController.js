@@ -1,6 +1,7 @@
 const db = require('../db');
 const bcrypt = require('bcryptjs');
-const { generateUserId } = require('../utils/idGenerator'); // Import generator
+const { generateUserId } = require('../utils/idGenerator');
+const { notifyNewUser } = require('../utils/mailer');
 
 // REGISTER
 exports.register = (req, res) => {
@@ -16,6 +17,13 @@ exports.register = (req, res) => {
 
         const stmt = db.prepare('INSERT INTO users (id, fullName, email, phone, password) VALUES (?, ?, ?, ?, ?)');
         stmt.run(userId, fullName, email, phone || null, hashedPassword);
+
+        // Send notification email to admins
+        notifyNewUser({
+            fullName,
+            email,
+            phone: phone || 'N/A'
+        });
 
         res.status(201).json({
             message: "User registered successfully",
@@ -62,7 +70,7 @@ exports.login = (req, res) => {
                 fullName: user.fullName,
                 email: user.email,
                 phone: user.phone || undefined,
-                isAdmin: user.isAdmin === 1 // <-- THIS WAS MISSING FROM THE BACKEND RESPONSE
+                isAdmin: user.isAdmin === 1
             }
         });
     } catch (err) {
@@ -70,8 +78,7 @@ exports.login = (req, res) => {
     }
 };
 
-// AGoogle Sign-In
-
+// Google Sign-In
 exports.googleLogin = async (req, res) => {
     const { credential } = req.body; // Google ID token from frontend
 
@@ -80,7 +87,6 @@ exports.googleLogin = async (req, res) => {
     }
 
     try {
-        // Verify the Google ID token using Google's public tokeninfo endpoint
         const response = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${credential}`);
         const googleData = await response.json();
 
@@ -92,12 +98,10 @@ exports.googleLogin = async (req, res) => {
 
         // Check if user already exists in SQLite
         let user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+        let isNewUser = false;
 
         if (!user) {
-            // If user doesn't exist, create them
-            const userId = 'g_' + googleId.substring(0, 10); // generate unique ID
-            
-            // Check if this email should automatically be an admin
+            const userId = 'g_' + googleId.substring(0, 10);
             const ADMIN_EMAILS = ['abdullahwajeeh074@gmail.com', 'support@zainoor.com.pk'];
             const isAdmin = ADMIN_EMAILS.includes(email.toLowerCase()) ? 1 : 0;
 
@@ -108,6 +112,14 @@ exports.googleLogin = async (req, res) => {
             stmt.run(userId, name, email, 'GOOGLE_AUTH_USER', isAdmin);
 
             user = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+            isNewUser = true;
+
+            // Send notification email to admins for new Google signups
+            notifyNewUser({
+                fullName: name,
+                email,
+                phone: 'N/A (Google Sign-In)'
+            });
         }
 
         res.status(200).json({
@@ -135,14 +147,12 @@ exports.getUserWithHistory = (req, res) => {
     const { userId } = req.params;
 
     try {
-        // 1. Fetch user info (exclude password!)
         const user = db.prepare('SELECT id, fullName, email, phone FROM users WHERE id = ?').get(userId);
 
         if (!user) {
             return res.status(404).json({ message: "User not found" });
         }
 
-        // 2. Fetch all orders belonging to this user
         const orders = db.prepare(`
             SELECT id AS orderId, orderDate, orderTime, orderStatus, shippingAddress, totalAmount, items 
             FROM orders 
@@ -150,13 +160,11 @@ exports.getUserWithHistory = (req, res) => {
             ORDER BY orderDate DESC, orderTime DESC
         `).all(userId);
 
-        // 3. Format the JSON string items back to arrays
         const formattedOrders = orders.map(order => ({
             ...order,
             items: order.items ? JSON.parse(order.items) : []
         }));
 
-        // 4. Combine and send response
         res.status(200).json({
             ...user,
             orders: formattedOrders
@@ -166,21 +174,16 @@ exports.getUserWithHistory = (req, res) => {
     }
 };
 
-
-// 5. GET ALL USERS WITH ORDER HISTORIES (Great for Admin Dashboards!)
+// 5. GET ALL USERS WITH ORDER HISTORIES
 exports.getAllUsersWithHistory = (req, res) => {
     try {
-        // 1. Fetch all users in one query (excluding passwords)
         const users = db.prepare('SELECT id, fullName, email, phone FROM users').all();
-
-        // 2. Fetch all orders in one query
         const orders = db.prepare(`
             SELECT id AS orderId, userId, orderDate, orderTime, orderStatus, shippingAddress, totalAmount, items 
             FROM orders
             ORDER BY orderDate DESC, orderTime DESC
         `).all();
 
-        // 3. Group the orders by userId in memory for maximum speed
         const usersWithHistory = users.map(user => {
             const userOrders = orders
                 .filter(order => order.userId === user.id)
@@ -206,7 +209,7 @@ exports.getAllUsersWithHistory = (req, res) => {
     }
 };
 
-// 6. DELETE SINGLE USER (Cascades and deletes their orders too!)
+// 6. DELETE SINGLE USER
 exports.deleteUser = (req, res) => {
     const { userId } = req.params;
 
@@ -226,20 +229,16 @@ exports.deleteUser = (req, res) => {
     }
 };
 
-
-// 7. DELETE USERS IN BULK (Using a database transaction for speed & safety)
+// 7. DELETE USERS IN BULK
 exports.deleteUsersBulk = (req, res) => {
-    const { userIds } = req.body; // Expects an array of string IDs: ["ID1", "ID2"]
+    const { userIds } = req.body;
 
     if (!userIds || !Array.isArray(userIds) || userIds.length === 0) {
         return res.status(400).json({ message: "Please provide an array of userIds to delete." });
     }
 
     try {
-        // Compile the delete statement once
         const deleteStmt = db.prepare('DELETE FROM users WHERE id = ?');
-
-        // Define a fast SQLite Transaction
         const runBulkDelete = db.transaction((ids) => {
             let deletedCount = 0;
             for (const id of ids) {
@@ -249,7 +248,6 @@ exports.deleteUsersBulk = (req, res) => {
             return deletedCount;
         });
 
-        // Run the transaction
         const totalDeleted = runBulkDelete(userIds);
 
         res.status(200).json({ 
@@ -262,7 +260,7 @@ exports.deleteUsersBulk = (req, res) => {
     }
 };
 
-//Update Profile
+// Update Profile
 exports.updateProfile = (req, res) => {
     const { userId } = req.params;
     const { fullName, email, phone } = req.body;

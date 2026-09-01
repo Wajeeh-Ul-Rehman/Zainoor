@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Eye, EyeOff, AlertTriangle, CheckCircle2, ArrowLeft, ArrowRight } from "lucide-react";
 import { useAuthStore } from '@/stores/authStore';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 /* ---------------------------------------------------------------------- */
 /*  Helpers                                                                 */
 /* ---------------------------------------------------------------------- */
@@ -331,7 +331,9 @@ export default function ZainoorAuthPage() {
                   <div className="mb-6">
                     <label className="flex items-start gap-2 font-body text-sm text-neutral-600">
                       <input type="checkbox" checked={agreeTerms} onChange={(e) => setAgreeTerms(e.target.checked)} className="w-4 h-4 mt-0.5" />
-                      <span>I agree to the Terms of Service and Privacy Policy.</span>
+                      <Link to="/t&c" className="">
+                        I agree to the Terms of Service and Privacy Policy.
+                      </Link>
                     </label>
                     {errors.terms && (
                       <div className="flex items-center gap-1.5 text-rose-700 text-xs mt-1.5">

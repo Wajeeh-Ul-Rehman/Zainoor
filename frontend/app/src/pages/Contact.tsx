@@ -4,6 +4,7 @@ import { useUIStore } from '@/stores/uiStore';
 
 export default function Contact() {
   const { addToast } = useUIStore();
+  const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -11,16 +12,33 @@ export default function Contact() {
     message: '',
   });
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    addToast('Message sent successfully! We will get back to you soon.', 'success');
-    setFormData({ name: '', email: '', subject: 'Order Inquiry', message: '' });
+    setSubmitting(true);
+    try {
+      const res = await fetch('http://localhost:5001/api/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        addToast('Message sent successfully! We will get back to you soon.', 'success');
+        setFormData({ name: '', email: '', subject: 'Order Inquiry', message: '' });
+      } else {
+        addToast(data.message || 'Could not send message.', 'error');
+      }
+    } catch {
+      addToast('Network error. Please try again.', 'error');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const contactInfo = [
     {
       label: 'Phone',
-      value: '+92 300 1234567',
+      value: '+92 337 6831521',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07 19.5 19.5 0 01-6-6 19.79 19.79 0 01-3.07-8.67A2 2 0 014.11 2h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L8.09 9.91a16 16 0 006 6l1.27-1.27a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
@@ -29,7 +47,7 @@ export default function Contact() {
     },
     {
       label: 'Email',
-      value: 'support@zainoor.pk',
+      value: 'support@zainoor.com.pk',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
@@ -39,7 +57,7 @@ export default function Contact() {
     },
     {
       label: 'Address',
-      value: '123-B, Gulberg III, Lahore, Pakistan',
+      value: 'Lahore,Islamic Republic Of Pakistan',
       icon: (
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
           <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" />
@@ -51,7 +69,6 @@ export default function Contact() {
 
   return (
     <main>
-      {/* Header */}
       <section className="bg-black pt-32 lg:pt-40 pb-12 lg:pb-16">
         <div className="container-main">
           <h1 className="font-display text-white text-4xl lg:text-6xl xl:text-[120px] leading-[0.8]">
@@ -63,11 +80,9 @@ export default function Contact() {
         </div>
       </section>
 
-      {/* Contact Grid */}
       <section className="py-12 lg:py-20">
         <div className="container-main">
           <div className="grid grid-cols-1 lg:grid-cols-5 gap-12 lg:gap-16">
-            {/* Info */}
             <div className="lg:col-span-2">
               <div className="space-y-8">
                 {contactInfo.map((info) => (
@@ -83,9 +98,8 @@ export default function Contact() {
                 ))}
               </div>
 
-              {/* Social */}
               <div className="flex gap-4 mt-8">
-                <a href="#" className="text-black hover:text-[#FF0000] transition-colors" aria-label="Instagram">
+                <a href="https://www.instagram.com/zainoorpk?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==" className="text-black hover:text-[#FF0000] transition-colors" aria-label="Instagram">
                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="2" y="2" width="20" height="20" rx="5" />
                     <circle cx="12" cy="12" r="5" />
@@ -100,7 +114,6 @@ export default function Contact() {
               </div>
             </div>
 
-            {/* Form */}
             <div className="lg:col-span-3">
               <form onSubmit={handleSubmit} className="space-y-6">
                 <div>
@@ -159,9 +172,10 @@ export default function Contact() {
                 </div>
                 <button
                   type="submit"
-                  className="bg-[#FF0000] text-white font-body font-semibold text-sm uppercase px-12 py-4 hover:bg-[#CC0000] transition-colors"
+                  disabled={submitting}
+                  className="bg-[#FF0000] text-white font-body font-semibold text-sm uppercase px-12 py-4 hover:bg-[#CC0000] transition-colors disabled:opacity-50"
                 >
-                  Send Message
+                  {submitting ? 'Sending…' : 'Send Message'}
                 </button>
               </form>
             </div>

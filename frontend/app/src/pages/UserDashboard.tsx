@@ -18,11 +18,12 @@ const API_BASE = 'http://localhost:5001/api';
 const CANCELLABLE_STATUSES = ['Pending', 'In Progress', 'Sent for Packing'];
 
 interface OrderItem {
-  productId?: string;
-  title: string;
-  qty: number;
+  name: string;
   price: number;
-}
+  qty: number;
+  size?: string;
+  color?: string;
+} 
 
 interface StatusEvent {
   status: string;
@@ -30,7 +31,7 @@ interface StatusEvent {
 }
 
 interface Order {
-  orderId: string;
+  id: string; // Matches backend primary key column
   orderDate: string;
   orderTime: string;
   orderStatus: string;
@@ -80,12 +81,17 @@ export default function UserDashboard() {
   useEffect(() => {
     if (!user?.id) return;
     setLoadingOrders(true);
-    fetch(`${API_BASE}/auth/users/${user.id}/history`)
-      .then((res) => res.json())
-      .then((data) => setOrders(data.orders || []))
-      .catch(() => addToast('Could not load your orders.', 'error'))
-      .finally(() => setLoadingOrders(false));
-  }, [user?.id]);
+    fetch(`http://localhost:5001/api/orders/user/${user.id}`)
+      .then(res => res.json())
+      .then(data => {
+        setOrders(data);
+        setLoadingOrders(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setLoadingOrders(false);
+      });
+  }, [user]);
 
   // Live status updates — if the admin changes a status while this page is open,
   // it updates instantly without a refresh.
@@ -93,7 +99,7 @@ export default function UserDashboard() {
     const onStatusUpdated = (payload: { id: string; orderStatus: string; statusHistory: StatusEvent[] }) => {
       setOrders((prev) =>
         prev.map((o) =>
-          o.orderId === payload.id ? { ...o, orderStatus: payload.orderStatus, statusHistory: payload.statusHistory } : o
+          o.id === payload.id ? { ...o, orderStatus: payload.orderStatus, statusHistory: payload.statusHistory } : o
         )
       );
     };
@@ -124,7 +130,7 @@ export default function UserDashboard() {
         addToast(body.message || 'Could not cancel order.', 'error');
         return;
       }
-      setOrders((prev) => prev.map((o) => (o.orderId === orderId ? { ...o, orderStatus: 'Cancelled' } : o)));
+      setOrders((prev) => prev.map((o) => (o.id === orderId ? { ...o, orderStatus: 'Cancelled' } : o)));
       addToast('Order cancelled', 'success');
     } catch {
       addToast('Could not reach the server.', 'error');
@@ -144,10 +150,11 @@ export default function UserDashboard() {
             ) : (
               <div className="space-y-4">
                 {orders.map((order) => (
-                  <div key={order.orderId} className="border border-[#EFEFEF] p-6">
+                  <div key={order.id} className="border border-[#EFEFEF] p-6">
                     <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
                       <div>
-                        <span className="font-body font-semibold text-sm">{order.orderId}</span>
+                        <span className="font-body text-xs text-neutral-400 block uppercase tracking-wider">Order ID</span>
+                        <span className="font-mono font-semibold text-sm">{order.id}</span>
                         <span className="font-body text-xs text-[#424242] ml-4">{order.orderDate}</span>
                       </div>
                       <StatusBadge status={order.orderStatus} />
@@ -155,7 +162,7 @@ export default function UserDashboard() {
                     <div className="space-y-2">
                       {order.items.map((item, i) => (
                         <div key={i} className="flex justify-between font-body text-sm">
-                          <span>{item.title} x{item.qty}</span>
+                          <span>{item.name} x{item.qty} {item.size ? `(${item.size})` : ''}</span>
                           <span>Rs. {(item.price * item.qty).toLocaleString()}</span>
                         </div>
                       ))}
@@ -163,14 +170,14 @@ export default function UserDashboard() {
                     <div className="flex justify-between items-center mt-4 pt-4 border-t border-[#EFEFEF]">
                       <div className="flex gap-4">
                         <button
-                          onClick={() => setExpandedOrder(expandedOrder === order.orderId ? null : order.orderId)}
+                          onClick={() => setExpandedOrder(expandedOrder === order.id ? null : order.id)}
                           className="font-body text-sm text-[#424242] hover:text-black transition-colors"
                         >
-                          {expandedOrder === order.orderId ? 'Hide tracking' : 'Track Order'}
+                          {expandedOrder === order.id ? 'Hide tracking' : 'Track Order'}
                         </button>
                         {CANCELLABLE_STATUSES.includes(order.orderStatus) && (
                           <button
-                            onClick={() => handleCancelOrder(order.orderId)}
+                            onClick={() => handleCancelOrder(order.id)}
                             className="font-body text-sm text-[#721C24] hover:text-black transition-colors"
                           >
                             Cancel Order
@@ -180,7 +187,7 @@ export default function UserDashboard() {
                       <span className="font-body font-semibold">Rs. {order.totalAmount.toLocaleString()}</span>
                     </div>
 
-                    {expandedOrder === order.orderId && (
+                    {expandedOrder === order.id && (
                       <div className="mt-4 pt-4 border-t border-[#EFEFEF]">
                         <p className="font-body text-xs uppercase tracking-wider text-[#424242] mb-3">Tracking history</p>
                         <div className="space-y-2">
@@ -218,9 +225,6 @@ export default function UserDashboard() {
             <button className="mt-4 font-body text-sm border border-black px-6 py-2 hover:bg-black hover:text-white transition-colors">
               + Add Address
             </button>
-            <p className="font-body text-xs text-[#424242] mt-3">
-              Note: there's no saved-addresses table on the backend yet — this is still a display shell. Say the word if you want that built.
-            </p>
           </div>
         );
 
@@ -264,9 +268,6 @@ export default function UserDashboard() {
                 </button>
               </div>
             </div>
-            <p className="font-body text-xs text-[#424242] mt-3">
-              Still fully placeholder — no affiliate table or referral tracking exists on the backend yet.
-            </p>
           </div>
         );
 

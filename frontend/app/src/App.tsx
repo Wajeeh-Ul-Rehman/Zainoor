@@ -21,6 +21,8 @@ import AdminDashboard from '@/pages/AdminDashboard';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AdminRoute from '@/components/AdminRoute';
 import Login from './pages/Login';
+import PrivacyTerms from './pages/PrivacyTerms';
+
 
 function App() {
   const location = useLocation();
@@ -64,6 +66,7 @@ function App() {
         <Route path="/contact" element={<Contact />} />
         <Route path="/affiliate" element={<Affiliate />} />
         <Route path="/login" element={<Login />} />
+        <Route path='/t&c' element={<PrivacyTerms />}/>
         <Route path="/checkout" element={
           <ProtectedRoute>
             <Checkout />

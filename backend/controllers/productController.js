@@ -35,54 +35,93 @@ exports.getProduct = (req, res) => {
   }
 };
 
+// backend/controllers/productController.js (or product routes file)
+
 exports.createProduct = (req, res) => {
-  const { title, description, price, cost, stock, category, images } = req.body;
-  if (!title || price === undefined) {
-    return res.status(400).json({ message: 'Title and price are required' });
-  }
+  const { title, description, price, cost, stock, category, images, sizeCharts } = req.body;
 
   try {
-    const id = generateUserId();
-    const sale = JSON.stringify({ active: false, price: null, unlimited: true, startDate: null, endDate: null });
+    const id = 'prod_' + Math.random().toString(36).substring(2, 9);
+    
+    const stmt = db.prepare(`
+      INSERT INTO products (id, title, description, price, cost, stock, category, images, sizeCharts)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
 
-    db.prepare(
-      `INSERT INTO products (id, title, description, price, cost, stock, category, images, hidden, unitsSold, sale)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 0, ?)`
-    ).run(id, title, description || '', price, cost || 0, stock || 0, category || '', JSON.stringify(images || []), sale);
+    stmt.run(
+      id,
+      title,
+      description || '',
+      price,
+      cost || 0,
+      stock || 0,
+      category || 'General',
+      JSON.stringify(images || []),
+      JSON.stringify(sizeCharts || {}) // <-- Stringify object for SQLite TEXT column
+    );
 
-    const product = parseProduct(db.prepare('SELECT * FROM products WHERE id = ?').get(id));
-    getIO().emit('product:created', product); // instantly appears on every open home page / dashboard
-    res.status(201).json(product);
+    const newProduct = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+    res.status(201).json({ 
+      success: true, 
+      product: { 
+        ...newProduct, 
+        images: JSON.parse(newProduct.images || '[]'), 
+        sizeCharts: JSON.parse(newProduct.sizeCharts || '{}') 
+      } 
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Could not create product', error: err.message });
+    res.status(500).json({ success: false, message: 'Could not create product', error: err.message });
   }
 };
 
 exports.updateProduct = (req, res) => {
   const { id } = req.params;
-  const existing = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
-  if (!existing) return res.status(404).json({ message: 'Product not found' });
+  const { title, description, price, cost, stock, category, images, sizeCharts } = req.body;
 
-  const { title, description, price, cost, stock, category, images } = req.body;
   try {
-    db.prepare(
-      `UPDATE products SET title = ?, description = ?, price = ?, cost = ?, stock = ?, category = ?, images = ? WHERE id = ?`
-    ).run(
-      title ?? existing.title,
-      description ?? existing.description,
-      price ?? existing.price,
-      cost ?? existing.cost,
-      stock ?? existing.stock,
-      category ?? existing.category,
-      images ? JSON.stringify(images) : existing.images,
+    const stmt = db.prepare(`
+      UPDATE products 
+      SET title = ?, description = ?, price = ?, cost = ?, stock = ?, category = ?, images = ?, sizeCharts = ?
+      WHERE id = ?
+    `);
+
+    stmt.run(
+      title,
+      description || '',
+      price,
+      cost || 0,
+      stock || 0,
+      category || 'General',
+      JSON.stringify(images || []),
+      JSON.stringify(sizeCharts || {}), // <-- Stringify object for SQLite TEXT column
       id
     );
 
-    const product = parseProduct(db.prepare('SELECT * FROM products WHERE id = ?').get(id));
-    getIO().emit('product:updated', product);
-    res.status(200).json(product);
+    const updated = db.prepare('SELECT * FROM products WHERE id = ?').get(id);
+    res.status(200).json({ 
+      success: true, 
+      product: { 
+        ...updated, 
+        images: JSON.parse(updated.images || '[]'), 
+        sizeCharts: JSON.parse(updated.sizeCharts || '{}') 
+      } 
+    });
   } catch (err) {
-    res.status(500).json({ message: 'Could not update product', error: err.message });
+    res.status(500).json({ success: false, message: 'Could not update product', error: err.message });
+  }
+};
+
+exports.deleteProduct = (req, res) => {
+  const { id } = req.params;
+
+  try {
+    db.prepare('DELETE FROM products WHERE id = ?').run(id);
+    
+    // Broadcast the deletion (only sending the ID is necessary)
+    getIO().emit('product:deleted', id); 
+    res.json({ message: 'Product deleted successfully' });
+  } catch (err) {
+    res.status(500).json({ message: 'Could not delete product', error: err.message });
   }
 };
 

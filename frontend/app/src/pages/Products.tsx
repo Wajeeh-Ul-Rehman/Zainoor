@@ -2,15 +2,19 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { products, categories, sortOptions } from '@/data/products';
+import { categories, sortOptions } from '@/data/products';
 import { useCartStore } from '@/stores/cartStore';
 import { useUIStore } from '@/stores/uiStore';
 import ProductCard from '@/components/ui/ProductCard';
+import { useProductStore } from '../stores/productStore';
 import QuickViewModal from '@/components/ui/QuickViewModal';
+import { socket } from '@/lib/socket'; // <-- Imported Socket
 
 gsap.registerPlugin(ScrollTrigger);
 
 export default function Products() {
+  // <-- Added addProduct, updateProduct, deleteProduct
+  const { products, fetchProducts, addProduct, updateProduct, deleteProduct } = useProductStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSort, setSelectedSort] = useState('newest');
@@ -19,6 +23,23 @@ export default function Products() {
   const { addItem } = useCartStore();
   const { addToast } = useUIStore();
   const gridRef = useRef<HTMLDivElement>(null);
+
+  // Fetch on Component Mount & Listen to Sockets
+  useEffect(() => {
+    fetchProducts();
+
+    // <-- Real-time socket listeners
+    socket.on('product:created', (newProduct) => addProduct(newProduct));
+    socket.on('product:updated', (updatedProduct) => updateProduct(updatedProduct));
+    socket.on('product:deleted', (productId) => deleteProduct(productId));
+
+    return () => {
+      // <-- Cleanup listeners on unmount
+      socket.off('product:created');
+      socket.off('product:updated');
+      socket.off('product:deleted');
+    };
+  }, [fetchProducts, addProduct, updateProduct, deleteProduct]);
 
   // Check if a product is specified in URL for quick view
   useEffect(() => {
@@ -29,7 +50,7 @@ export default function Products() {
         setQuickViewProduct(product);
       }
     }
-  }, [searchParams]);
+  }, [searchParams, products]); // <-- Added products to dependency array to catch live updates
 
   // Scroll-triggered entrance
   useEffect(() => {
@@ -58,7 +79,7 @@ export default function Products() {
       tl.scrollTrigger?.kill();
       tl.kill();
     };
-  }, [selectedCategory, selectedSort, priceRange]);
+  }, [selectedCategory, selectedSort, priceRange, products]); // <-- Added products here so animations re-trigger if a product is added live
 
   const filteredProducts = useMemo(() => {
     let result = [...products];
@@ -91,13 +112,14 @@ export default function Products() {
     }
 
     return result;
-  }, [selectedCategory, selectedSort, priceRange]);
+  }, [selectedCategory, selectedSort, priceRange, products]);
 
   const handleQuickAdd = (product: typeof products[0]) => {
-    const size = product.sizes[Math.floor(product.sizes.length / 2)];
-    const color = product.colors[0];
+    // Note: ensure product.sizes and product.colors exist in your new SQLite DB schema!
+    const size = product.sizes?.[Math.floor(product.sizes.length / 2)] || 'Default';
+    const color = product.colors?.[0] || 'Default';
     addItem(product, size, color);
-    addToast(`${product.name} added to cart`, 'success');
+    addToast(`${product.title || product.name} added to cart`, 'success');
   };
 
   const handleQuickView = (product: typeof products[0]) => {
@@ -201,7 +223,10 @@ export default function Products() {
               {filteredProducts.map((product) => (
                 <div key={product.id} className="product-card-wrapper">
                   <div onClick={() => handleQuickView(product)} className="cursor-pointer">
-                    <ProductCard product={product} onQuickAdd={handleQuickAdd} />
+                    <ProductCard product={product} onQuickAdd={(e) => {
+                      e.stopPropagation(); // <-- Prevents QuickView from opening when adding to cart
+                      handleQuickAdd(product);
+                    }} />
                   </div>
                 </div>
               ))}

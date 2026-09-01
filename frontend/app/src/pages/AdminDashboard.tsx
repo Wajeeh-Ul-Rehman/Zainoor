@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
-  LayoutGrid, Package, ShoppingBag, Users, Plus, X, Trash2, EyeOff, Eye, Tag,
+  LayoutGrid, Package, ShoppingBag, Users, Inbox, Plus, X, Trash2, EyeOff, Eye, Tag,
   Search, ImagePlus, Download, TrendingUp, AlertTriangle, LogOut, CheckSquare,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
@@ -18,11 +18,178 @@ const NAV = [
   { key: 'orders', label: 'Orders', icon: ShoppingBag },
   { key: 'products', label: 'Products', icon: Package },
   { key: 'users', label: 'Users', icon: Users },
+  { key: 'submissions', label: 'Submissions', icon: Inbox },
 ] as const;
 
 /* ---------------------------------------------------------------------- */
 /*  Product form modal — real image upload, real create/update            */
 /* ---------------------------------------------------------------------- */
+
+interface AttributeRow {
+  name: string;
+  value: string;
+}
+
+interface SizeForm {
+  title: string;
+  rows: AttributeRow[];
+}
+
+function SizeChartsEditor({ sizeCharts, onChange }: { sizeCharts: Record<string, SizeForm[]>, onChange: (charts: Record<string, SizeForm[]>) => void }) {
+  const [activeSize, setActiveSize] = useState<'S' | 'M' | 'L' | 'XL'>('S');
+
+  const sizes = [
+    { key: 'S', label: 'Small (S)' },
+    { key: 'M', label: 'Medium (M)' },
+    { key: 'L', label: 'Large (L)' },
+    { key: 'XL', label: 'Extra Large (XL)' },
+  ];
+
+  const currentForms = sizeCharts[activeSize] || [];
+
+  const handleAddForm = () => {
+    if (currentForms.length >= 3) return;
+    const updatedForms = [...currentForms, { title: '', rows: [{ name: '', value: '' }] }];
+    onChange({ ...sizeCharts, [activeSize]: updatedForms });
+  };
+
+  const handleRemoveForm = (formIndex: number) => {
+    const updatedForms = currentForms.filter((_, idx) => idx !== formIndex);
+    onChange({ ...sizeCharts, [activeSize]: updatedForms });
+  };
+
+  const handleTitleChange = (formIndex: number, title: string) => {
+    const updatedForms = [...currentForms];
+    updatedForms[formIndex].title = title;
+    onChange({ ...sizeCharts, [activeSize]: updatedForms });
+  };
+
+  const handleAddRow = (formIndex: number) => {
+    const updatedForms = [...currentForms];
+    updatedForms[formIndex].rows.push({ name: '', value: '' });
+    onChange({ ...sizeCharts, [activeSize]: updatedForms });
+  };
+
+  const handleRemoveRow = (formIndex: number, rowIndex: number) => {
+    const updatedForms = [...currentForms];
+    updatedForms[formIndex].rows = updatedForms[formIndex].rows.filter((_, idx) => idx !== rowIndex);
+    onChange({ ...sizeCharts, [activeSize]: updatedForms });
+  };
+
+  const handleRowChange = (formIndex: number, rowIndex: number, field: 'name' | 'value', val: string) => {
+    const updatedForms = [...currentForms];
+    updatedForms[formIndex].rows[rowIndex][field] = val;
+    onChange({ ...sizeCharts, [activeSize]: updatedForms });
+  };
+
+  return (
+    <div className="bg-white border border-neutral-200 p-6 rounded-lg space-y-6 mt-6">
+      <div>
+        <h3 className="font-display text-lg font-medium text-black">Product Size Charts & Attributes</h3>
+        <p className="font-body text-xs text-neutral-500 mt-1">Configure up to 3 attribute forms for each size category.</p>
+      </div>
+
+      <div className="flex border-b border-neutral-200">
+        {sizes.map((s) => (
+          <button
+            key={s.key}
+            type="button"
+            onClick={() => setActiveSize(s.key as any)}
+            className={`px-6 py-3 font-body text-sm font-medium border-b-2 transition-colors ${
+              activeSize === s.key ? 'border-black text-black' : 'border-transparent text-neutral-400 hover:text-black'
+            }`}
+          >
+            {s.label} ({sizeCharts[s.key]?.length || 0}/3)
+          </button>
+        ))}
+      </div>
+
+      <div className="space-y-8">
+        {currentForms.map((form, formIdx) => (
+          <div key={formIdx} className="border border-neutral-200 p-5 rounded bg-neutral-50/50 space-y-4">
+            <div className="flex items-center justify-between gap-4">
+              <input
+                type="text"
+                placeholder="Main Title (e.g., Shirt Size Chart, Trouser Measurements)"
+                value={form.title}
+                onChange={(e) => handleTitleChange(formIdx, e.target.value)}
+                className="flex-1 border-b border-neutral-300 pb-1 font-body text-sm font-medium bg-transparent focus:outline-none focus:border-black"
+              />
+              <button
+                type="button"
+                onClick={() => handleRemoveForm(formIdx)}
+                className="font-body text-xs text-rose-600 hover:text-rose-800 uppercase tracking-wider"
+              >
+                Remove Form
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <div className="grid grid-cols-12 gap-3 font-body text-xs uppercase tracking-wider text-neutral-500 px-1">
+                <div className="col-span-5">Attribute name</div>
+                <div className="col-span-6">Attribute size</div>
+                <div className="col-span-1"></div>
+              </div>
+
+              {form.rows.map((row, rowIdx) => (
+                <div key={rowIdx} className="grid grid-cols-12 gap-3 items-center">
+                  <div className="col-span-5">
+                    <input
+                      type="text"
+                      placeholder="e.g. Chest / Length"
+                      value={row.name}
+                      onChange={(e) => handleRowChange(formIdx, rowIdx, 'name', e.target.value)}
+                      className="w-full border border-neutral-300 bg-white p-2 font-body text-sm focus:outline-none focus:border-black"
+                    />
+                  </div>
+                  <div className="col-span-6">
+                    <input
+                      type="text"
+                      placeholder="e.g. 22 inches / 30 inches"
+                      value={row.value}
+                      onChange={(e) => handleRowChange(formIdx, rowIdx, 'value', e.target.value)}
+                      className="w-full border border-neutral-300 bg-white p-2 font-body text-sm focus:outline-none focus:border-black"
+                    />
+                  </div>
+                  <div className="col-span-1 text-center">
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveRow(formIdx, rowIdx)}
+                      className="text-neutral-400 hover:text-rose-600 font-bold"
+                      title="Remove row"
+                    >
+                      ×
+                    </button>
+                  </div>
+                </div>
+              ))}
+
+              <button
+                type="button"
+                onClick={() => handleAddRow(formIdx)}
+                className="mt-2 font-body text-xs text-black underline underline-offset-4 hover:opacity-70"
+              >
+                + Add Attribute Row
+              </button>
+            </div>
+          </div>
+        ))}
+
+        {currentForms.length < 3 ? (
+          <button
+            type="button"
+            onClick={handleAddForm}
+            className="w-full border-2 border-dashed border-neutral-300 py-3 font-body text-sm text-neutral-600 hover:border-black hover:text-black transition-colors"
+          >
+            + Add Attribute Form ({currentForms.length}/3)
+          </button>
+        ) : (
+          <p className="font-body text-xs text-neutral-400 text-center">Maximum limit of 3 attribute forms reached for this size.</p>
+        )}
+      </div>
+    </div>
+  );
+}
 
 function ProductFormModal({
   initial,
@@ -41,8 +208,12 @@ function ProductFormModal({
   const [stock, setStock] = useState(initial ? String(initial.stock) : '');
   const [category, setCategory] = useState(initial?.category || CATEGORIES[0]);
 
-  // Existing (already-uploaded) image URLs, kept separately from new files
-  // staged for upload, so removing one doesn't touch the other.
+  const initialCharts = useMemo(() => {
+    if (!initial?.sizeCharts) return {};
+    return typeof initial.sizeCharts === 'string' ? JSON.parse(initial.sizeCharts) : initial.sizeCharts;
+  }, [initial]);
+
+  const [sizeCharts, setSizeCharts] = useState<Record<string, SizeForm[]>>(initialCharts);
   const [existingImages, setExistingImages] = useState<string[]>(initial?.images || []);
   const [stagedFiles, setStagedFiles] = useState<File[]>([]);
   const [saving, setSaving] = useState(false);
@@ -79,6 +250,7 @@ function ProductFormModal({
       stock: Number(stock) || 0,
       category,
       images,
+      sizeCharts,
     };
 
     const result = initial ? await updateProduct(initial.id, payload) : await createProduct(payload);
@@ -95,80 +267,88 @@ function ProductFormModal({
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="relative bg-white w-full max-w-xl max-h-[90vh] overflow-y-auto">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 sticky top-0 bg-white">
+      <div className="relative bg-white w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-neutral-200 sticky top-0 bg-white z-10">
           <h3 className="font-display text-xl">{initial ? 'Edit product' : 'Add product'}</h3>
           <button onClick={onClose} aria-label="Close" className="text-neutral-400 hover:text-black">
             <X size={20} />
           </button>
         </div>
 
-        <form onSubmit={submit} className="px-6 py-5">
-          <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">
-            Images — {totalImages}/10
-          </label>
-          <div className="flex flex-wrap gap-2 mb-4">
-            {existingImages.map((src, i) => (
-              <div key={`existing-${i}`} className="relative w-16 h-20 border border-neutral-300">
-                <img src={`${UPLOADS_BASE}${src}`} alt="" className="w-full h-full object-cover" />
-                <button
-                  type="button"
-                  onClick={() => removeExisting(i)}
-                  className="absolute -top-2 -right-2 bg-black text-white rounded-full w-5 h-5 flex items-center justify-center"
-                >
-                  <X size={11} />
-                </button>
-              </div>
-            ))}
-            {stagedPreviews.map((src, i) => (
-              <div key={`staged-${i}`} className="relative w-16 h-20 border border-neutral-300">
-                <img src={src} alt="" className="w-full h-full object-cover" />
-                <span className="absolute bottom-0 inset-x-0 bg-black/70 text-white text-[9px] text-center py-0.5">new</span>
-                <button
-                  type="button"
-                  onClick={() => removeStaged(i)}
-                  className="absolute -top-2 -right-2 bg-black text-white rounded-full w-5 h-5 flex items-center justify-center"
-                >
-                  <X size={11} />
-                </button>
-              </div>
-            ))}
-            {totalImages < 10 && (
-              <label className="w-16 h-20 border border-dashed border-neutral-300 flex items-center justify-center text-neutral-400 cursor-pointer hover:border-black hover:text-black">
-                <ImagePlus size={18} />
-                <input type="file" accept="image/*" multiple hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
-              </label>
-            )}
+        <form onSubmit={submit} className="px-6 py-5 space-y-4">
+          <div>
+            <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">
+              Images — {totalImages}/10
+            </label>
+            <div className="flex flex-wrap gap-2 mb-4">
+              {existingImages.map((src, i) => (
+                <div key={`existing-${i}`} className="relative w-16 h-20 border border-neutral-300">
+                  <img src={`${UPLOADS_BASE}${src}`} alt="" className="w-full h-full object-cover" />
+                  <button
+                    type="button"
+                    onClick={() => removeExisting(i)}
+                    className="absolute -top-2 -right-2 bg-black text-white rounded-full w-5 h-5 flex items-center justify-center"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+              {stagedPreviews.map((src, i) => (
+                <div key={`staged-${i}`} className="relative w-16 h-20 border border-neutral-300">
+                  <img src={src} alt="" className="w-full h-full object-cover" />
+                  <span className="absolute bottom-0 inset-x-0 bg-black/70 text-white text-[9px] text-center py-0.5">new</span>
+                  <button
+                    type="button"
+                    onClick={() => removeStaged(i)}
+                    className="absolute -top-2 -right-2 bg-black text-white rounded-full w-5 h-5 flex items-center justify-center"
+                  >
+                    <X size={11} />
+                  </button>
+                </div>
+              ))}
+              {totalImages < 10 && (
+                <label className="w-16 h-20 border border-dashed border-neutral-300 flex items-center justify-center text-neutral-400 cursor-pointer hover:border-black hover:text-black">
+                  <ImagePlus size={18} />
+                  <input type="file" accept="image/*" multiple hidden onChange={(e) => e.target.files && addFiles(e.target.files)} />
+                </label>
+              )}
+            </div>
           </div>
 
-          <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Title</label>
-          <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 mb-4 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+          <div>
+            <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Title</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+          </div>
 
-          <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Description</label>
-          <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 mb-4 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+          <div>
+            <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Description</label>
+            <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+          </div>
 
-          <div className="grid grid-cols-2 gap-4 mb-2">
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Price (Rs)</label>
-              <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 mb-4 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+              <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
             </div>
             <div>
               <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Cost price (Rs)</label>
-              <input type="number" min="0" value={cost} onChange={(e) => setCost(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 mb-4 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+              <input type="number" min="0" value={cost} onChange={(e) => setCost(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
             </div>
             <div>
               <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Stock</label>
-              <input type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 mb-4 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+              <input type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
             </div>
             <div>
               <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Category</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 mb-4 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black">
+              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black">
                 {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
               </select>
             </div>
           </div>
 
-          <div className="flex justify-end gap-3 pt-3 border-t border-neutral-200">
+          <SizeChartsEditor sizeCharts={sizeCharts} onChange={setSizeCharts} />
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-neutral-200">
             <button type="button" onClick={onClose} className="px-4 py-2 font-body text-sm text-neutral-600 hover:text-black">Cancel</button>
             <button type="submit" disabled={!canSave || saving} className="px-5 py-2 bg-black text-white font-body text-sm disabled:opacity-40 hover:bg-neutral-800">
               {saving ? 'Saving…' : initial ? 'Save changes' : 'Add product'}
@@ -266,12 +446,25 @@ function SaleModal({ product, onClose }: { product: Product; onClose: () => void
 /* ---------------------------------------------------------------------- */
 
 export default function AdminDashboard() {
+  const fetchSubmissions = async () => {
+  try {
+    const res = await fetch('http://localhost:5001/api/submissions');
+    const data = await res.json();
+    if (res.ok) setSubmissions(data);
+  } catch (err) {
+    console.error('Could not load submissions:', err);
+  }
+};
+
   const { user, logout } = useAuthStore();
   const { addToast } = useUIStore();
 
   const { products, fetchProducts, deleteProduct, toggleHide } = useProductStore();
   const { orders, fetchAllOrders, updateOrderStatus } = useOrderStore();
   const { users, fetchUsers, deleteUser, deleteUsersBulk } = useUserStore();
+
+  const [submissions, setSubmissions] = useState<any[]>([]);
+  
 
   const [tab, setTab] = useState<(typeof NAV)[number]['key']>('overview');
   const [productModal, setProductModal] = useState<{ mode: 'add' | 'edit'; product: Product | null } | null>(null);
@@ -282,12 +475,13 @@ export default function AdminDashboard() {
   const [orderStatusFilter, setOrderStatusFilter] = useState<'All' | OrderStatus>('All');
   const [userSearch, setUserSearch] = useState('');
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [expandedAdminOrder, setExpandedAdminOrder] = useState<string | null>(null);
 
-  // Initial load — products include hidden ones here since this is the admin view
   useEffect(() => {
-    fetchProducts(true);
     fetchAllOrders();
+    fetchProducts();
     fetchUsers();
+    fetchSubmissions();
   }, []);
 
   const activeOrders = orders.filter((o) => o.orderStatus !== 'Cancelled');
@@ -346,6 +540,19 @@ export default function AdminDashboard() {
     a.click();
     URL.revokeObjectURL(url);
   };
+
+  const handleDeleteSubmission = async (id: string) => {
+  if (!window.confirm('Delete this inquiry?')) return;
+  try {
+    const res = await fetch(`http://localhost:5001/api/submissions/${id}`, { method: 'DELETE' });
+    if (res.ok) {
+      setSubmissions((prev) => prev.filter((s) => s.id !== id));
+      addToast('Submission deleted', 'success');
+    }
+  } catch {
+    addToast('Could not delete submission', 'error');
+  }
+};
 
   return (
     <div className="min-h-screen bg-neutral-50 text-black flex">
@@ -471,31 +678,99 @@ export default function AdminDashboard() {
                     <th className="p-3 text-right">Total</th>
                     <th className="p-3 text-left">Date</th>
                     <th className="p-3 text-left">Status</th>
+                    <th className="p-3 text-right">Details</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredOrders.map((o) => (
-                    <tr key={o.id} className="border-b border-neutral-100 font-body">
-                      <td className="p-3 whitespace-nowrap">{o.id}</td>
-                      <td className="p-3">
-                        <div>{o.customerName}</div>
-                        <div className="text-xs text-neutral-400">{o.customerEmail}</div>
-                      </td>
-                      <td className="p-3 text-right whitespace-nowrap">{rs(o.totalAmount)}</td>
-                      <td className="p-3 whitespace-nowrap">{o.orderDate}</td>
-                      <td className="p-3">
-                        <select
-                          value={o.orderStatus}
-                          onChange={(e) => handleStatusChange(o.id, e.target.value as OrderStatus)}
-                          className="border border-neutral-300 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-black"
-                        >
-                          {ORDER_STATUSES.map((s) => <option key={s}>{s}</option>)}
-                        </select>
-                      </td>
-                    </tr>
+                    <React.Fragment key={o.id}>
+                      <tr className="border-b border-neutral-100 font-body">
+                        <td className="p-3 font-mono text-xs whitespace-nowrap">{o.id}</td>
+                        <td className="p-3">
+                          <div className="font-medium">{o.customerName || 'Guest / Unknown'}</div>
+                          <div className="text-xs text-neutral-500">{o.customerEmail}</div>
+                          <div className="text-xs text-neutral-400">Phone: {(o as any).customerPhone || 'N/A'}</div>
+                        </td>
+                        <td className="p-3 text-right whitespace-nowrap font-semibold">{rs(o.totalAmount)}</td>
+                        <td className="p-3 whitespace-nowrap text-xs text-neutral-600">{o.orderDate}</td>
+                        <td className="p-3">
+                          <div className="space-y-1">
+                            <select
+                              value={o.orderStatus}
+                              onChange={(e) => handleStatusChange(o.id, e.target.value as OrderStatus)}
+                              className="border border-neutral-300 text-xs px-2 py-1 focus:outline-none focus:ring-2 focus:ring-black"
+                            >
+                              {ORDER_STATUSES.map((s) => <option key={s}>{s}</option>)}
+                            </select>
+                            {o.orderStatus === 'Cancelled' && (
+                              <div className="text-[10px] text-rose-700 font-medium uppercase tracking-wider">
+                                Cancelled by {o.cancelledBy === 'user' ? 'User' : 'Admin'}
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                        <td className="p-3 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => setExpandedAdminOrder(expandedAdminOrder === o.id ? null : o.id)}
+                            className="text-xs font-semibold underline text-neutral-700 hover:text-black"
+                          >
+                            {expandedAdminOrder === o.id ? 'Hide Details' : 'View Details'}
+                          </button>
+                        </td>
+                      </tr>
+
+                      {expandedAdminOrder === o.id && (
+                        <tr className="bg-neutral-50 border-b border-neutral-200">
+                          <td colSpan={6} className="p-6">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-body text-xs">
+                              {/* Customer & Address */}
+                              <div className="space-y-2">
+                                <h4 className="font-semibold uppercase tracking-wider text-black mb-1">Customer & Shipping</h4>
+                                <p><strong>Name:</strong> {o.customerName || 'N/A'}</p>
+                                <p><strong>Email:</strong> {o.customerEmail || 'N/A'}</p>
+                                <p><strong>Phone:</strong> {(o as any).customerPhone || 'N/A'}</p>
+                                <p className="pt-2"><strong>Shipping Address:</strong><br />{o.shippingAddress || 'No address provided'}</p>
+                              </div>
+
+                              {/* Items List */}
+                              <div className="space-y-2 md:col-span-1">
+                                <h4 className="font-semibold uppercase tracking-wider text-black mb-1">Order Items</h4>
+                                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
+                                  {(o.items || []).map((item: any, idx: number) => (
+                                    <div key={idx} className="flex justify-between items-center bg-white p-2 border border-neutral-200">
+                                      <div>
+                                        <p className="font-medium text-black">{item.name || item.title || 'Product'}</p>
+                                        <p className="text-[10px] text-neutral-500">Qty: {item.qty} {item.size ? `/ Size: ${item.size}` : ''}</p>
+                                      </div>
+                                      <span className="font-semibold">{rs(item.price * item.qty)}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              </div>
+
+                              {/* Tracking History */}
+                              <div className="space-y-2">
+                                <h4 className="font-semibold uppercase tracking-wider text-black mb-1">Tracking Log</h4>
+                                <div className="space-y-1 bg-white p-3 border border-neutral-200 max-h-40 overflow-y-auto">
+                                  {((o as any).statusHistory || []).map((h: any, hIdx: number) => (
+                                    <div key={hIdx} className="flex justify-between text-[11px] border-b border-neutral-100 pb-1 last:border-0">
+                                      <span className="font-medium text-black">{h.status}</span>
+                                      <span className="text-neutral-400">{new Date(h.at).toLocaleString()}</span>
+                                    </div>
+                                  ))}
+                                  {(!((o as any).statusHistory) || (o as any).statusHistory.length === 0) && (
+                                    <span className="text-neutral-400">No history available</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
                   ))}
                   {filteredOrders.length === 0 && (
-                    <tr><td colSpan={5} className="p-6 text-center text-neutral-400 font-body text-sm">No orders match this search.</td></tr>
+                    <tr><td colSpan={6} className="p-6 text-center text-neutral-400 font-body text-sm">No orders match this search.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -630,6 +905,48 @@ export default function AdminDashboard() {
             </div>
           </section>
         )}
+        {tab === 'submissions' && (
+  <section>
+    <h1 className="font-display text-3xl mb-6">Inquiries & Submissions</h1>
+    <div className="space-y-4">
+      {submissions.length === 0 ? (
+        <div className="bg-white border border-neutral-200 p-8 text-center text-neutral-400 font-body text-sm">
+          No form submissions received yet.
+        </div>
+      ) : (
+        submissions.map((s) => (
+          <div key={s.id} className="bg-white border border-neutral-200 p-5 font-body space-y-3">
+            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+              <div>
+                <span className="font-semibold text-sm block text-black">{s.name}</span>
+                <span className="text-xs text-neutral-400">{s.email}</span>
+              </div>
+              <div className="text-right">
+                <span className="bg-neutral-100 text-neutral-800 text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 inline-block mb-1">
+                  {s.subject}
+                </span>
+                <span className="text-xs text-neutral-400 block">
+                  {new Date(s.createdAt).toLocaleString()}
+                </span>
+              </div>
+            </div>
+            <p className="text-sm text-neutral-700 whitespace-pre-line bg-neutral-50 p-3 border border-neutral-100">
+              {s.message}
+            </p>
+            <div className="flex justify-end pt-1">
+              <button
+                onClick={() => handleDeleteSubmission(s.id)}
+                className="text-xs text-rose-600 hover:text-rose-800 font-medium uppercase tracking-wider flex items-center gap-1"
+              >
+                <Trash2 size={13} /> Delete Inquiry
+              </button>
+            </div>
+          </div>
+        ))
+            )}
+          </div>
+        </section>
+      )}
       </main>
 
       {productModal && (

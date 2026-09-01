@@ -33,7 +33,20 @@ db.exec(`
 // New: tracks every status change over time (e.g. Pending -> Packed -> Delivered),
 // so both the admin dashboard and a future customer tracking view can show a timeline.
 try {
-  db.exec(`ALTER TABLE orders ADD COLUMN statusHistory TEXT DEFAULT '[]'`);
+  db.exec(`ALTER TABLE orders ADD COLUMN statusHistory TEXT DEFAULT '[]' `);
+} catch (err) {
+  // Already added on a previous run — safe to ignore.
+}
+
+// Inside backend/db.js
+try {
+  db.exec(`ALTER TABLE orders ADD COLUMN cancelledBy TEXT`);
+} catch (err) {
+  // Column already exists — safe to ignore
+}
+
+try {
+  db.exec(`ALTER TABLE products ADD COLUMN sizeCharts TEXT DEFAULT '{}'`);
 } catch (err) {
   // Already added on a previous run — safe to ignore.
 }
@@ -53,6 +66,17 @@ db.exec(`
     unitsSold INTEGER DEFAULT 0,
     sale TEXT DEFAULT '{"active":false,"price":null,"unlimited":true,"startDate":null,"endDate":null}',
     createdAt TEXT DEFAULT (datetime('now'))
+  )
+`);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS submissions (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    message TEXT NOT NULL,
+    createdAt TEXT NOT NULL
   )
 `);
 

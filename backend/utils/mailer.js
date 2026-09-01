@@ -1,7 +1,6 @@
 const nodemailer = require('nodemailer');
 
-// Comma-separated list in .env, e.g. ADMIN_NOTIFY_EMAILS=admin@zainoor.com,owner@zainoor.com
-const ADMIN_EMAILS = (process.env.ADMIN_NOTIFY_EMAILS || '')
+const ADMIN_EMAILS = (process.env.ADMIN_NOTIFY_EMAILS || 'abdullahwajeeh074@gmail.com,support@zainoor.com.pk')
   .split(',')
   .map((e) => e.trim())
   .filter(Boolean);
@@ -9,7 +8,7 @@ const ADMIN_EMAILS = (process.env.ADMIN_NOTIFY_EMAILS || '')
 const transporter = nodemailer.createTransport({
   host: process.env.SMTP_HOST,
   port: Number(process.env.SMTP_PORT || 587),
-  secure: process.env.SMTP_SECURE === 'true', // true for port 465, false for 587 (STARTTLS)
+  secure: process.env.SMTP_SECURE === 'true',
   auth: {
     user: process.env.SMTP_USER,
     pass: process.env.SMTP_PASS,
@@ -29,9 +28,109 @@ async function notifyAdmins(subject, html) {
       html,
     });
   } catch (err) {
-    // Don't let a failed email break the order/cancel request itself
     console.error('Failed to send admin notification email:', err.message);
   }
 }
 
-module.exports = { notifyAdmins };
+async function notifyNewUser(user) {
+  const now = new Date();
+  const html = `
+    <h2>New User Registration</h2>
+    <p><strong>Name:</strong> ${user.fullName || user.name}</p>
+    <p><strong>Email:</strong> ${user.email}</p>
+    <p><strong>Method of Sign Up:</strong> Password / Standard</p>
+    <p><strong>Phone Number:</strong> ${user.phone || 'N/A'}</p>
+    <p><strong>Date & Time:</strong> ${now.toLocaleDateString()} at ${now.toLocaleTimeString()}</p>
+  `;
+  await notifyAdmins(`New User Registration — ${user.fullName || user.name}`, html);
+}
+
+async function notifyNewOrder(order, user) {
+  const itemsListHtml = (order.items || []).map(item => `
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.name}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.qty}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">Rs. ${(item.price || 0).toLocaleString()}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+    <h2>New Order Notification</h2>
+    <p><strong>Order ID:</strong> ${order.id}</p>
+    <p><strong>Status:</strong> ${order.orderStatus || 'Pending'}</p>
+    <p><strong>Date & Time:</strong> ${order.orderDate} at ${order.orderTime}</p>
+    <p><strong>Total Price:</strong> Rs. ${Number(order.totalAmount || 0).toLocaleString()}</p>
+    <p><strong>Customer Name:</strong> ${user?.fullName || user?.name || 'N/A'}</p>
+    <p><strong>Email:</strong> ${user?.email || 'N/A'}</p>
+    <p><strong>Contact Number / Phone:</strong> ${user?.phone || 'N/A'}</p>
+    <p><strong>Shipping Address:</strong> ${order.shippingAddress}</p>
+    
+    <h3 style="margin-top: 20px;">Ordered Products:</h3>
+    <table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">
+      <thead>
+        <tr style="background: #f4f4f4; text-align: left;">
+          <th style="padding: 8px;">Product Name</th>
+          <th style="padding: 8px; text-align: center;">Quantity</th>
+          <th style="padding: 8px; text-align: right;">Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsListHtml}
+      </tbody>
+    </table>
+  `;
+  await notifyAdmins(`New Order Placed [${order.id}] — Rs. ${Number(order.totalAmount || 0).toLocaleString()}`, html);
+}
+
+async function notifyOrderCancelled(order, user, cancelledBy) {
+  const itemsListHtml = (order.items || []).map(item => `
+    <tr>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd;">${item.name}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: center;">${item.qty}</td>
+      <td style="padding: 8px; border-bottom: 1px solid #ddd; text-align: right;">Rs. ${(item.price || 0).toLocaleString()}</td>
+    </tr>
+  `).join('');
+
+  const html = `
+    <h2>Order Cancellation Notice</h2>
+    <p><strong>Order ID:</strong> ${order.id}</p>
+    <p><strong>Cancelled By:</strong> ${cancelledBy === 'user' ? 'Customer' : 'Admin'}</p>
+    <p><strong>Status:</strong> Cancelled</p>
+    <p><strong>Date & Time:</strong> ${new Date().toLocaleString()}</p>
+    <p><strong>Total Amount:</strong> Rs. ${Number(order.totalAmount || 0).toLocaleString()}</p>
+    <p><strong>Customer Name:</strong> ${user?.fullName || user?.name || 'N/A'}</p>
+    <p><strong>Email:</strong> ${user?.email || 'N/A'}</p>
+    <p><strong>Contact Number:</strong> ${user?.phone || 'N/A'}</p>
+    <p><strong>Shipping Address:</strong> ${order.shippingAddress}</p>
+
+    <h3 style="margin-top: 20px;">Order Items:</h3>
+    <table style="width: 100%; border-collapse: collapse; font-family: sans-serif; font-size: 14px;">
+      <thead>
+        <tr style="background: #f4f4f4; text-align: left;">
+          <th style="padding: 8px;">Product Name</th>
+          <th style="padding: 8px; text-align: center;">Quantity</th>
+          <th style="padding: 8px; text-align: right;">Price</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${itemsListHtml}
+      </tbody>
+    </table>
+  `;
+  await notifyAdmins(`Order Cancelled [${order.id}] by ${cancelledBy.toUpperCase()}`, html);
+}
+
+async function notifyNewSubmission(sub) {
+  const html = `
+    <h2>New Contact Form Submission</h2>
+    <p><strong>Name:</strong> ${sub.name}</p>
+    <p><strong>Email:</strong> ${sub.email}</p>
+    <p><strong>Subject:</strong> ${sub.subject}</p>
+    <p><strong>Date & Time:</strong> ${new Date(sub.createdAt).toLocaleString()}</p>
+    <h3 style="margin-top: 15px;">Message:</h3>
+    <p style="background: #f9f9f9; padding: 12px; border-left: 3px solid #000; font-family: sans-serif;">${sub.message.replace(/\n/g, '<br/>')}</p>
+  `;
+  await notifyAdmins(`New Contact Inquiry: [${sub.subject}] — ${sub.name}`, html);
+}
+
+module.exports = { notifyAdmins, notifyNewUser, notifyNewOrder, notifyOrderCancelled, notifyNewSubmission };

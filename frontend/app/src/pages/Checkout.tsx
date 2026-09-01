@@ -7,12 +7,6 @@ import { useAuthStore } from '@/stores/authStore';
 
 const paymentMethods = [
   { id: 'cod', name: 'Cash on Delivery', icon: '💵' },
-  { id: 'jazzcash', name: 'JazzCash', icon: '📱' },
-  { id: 'easypaisa', name: 'EasyPaisa', icon: '📱' },
-  { id: 'upaisa', name: 'Upaisa', icon: '📱' },
-  { id: 'sadapay', name: 'Sadapay', icon: '💳' },
-  { id: 'nayapay', name: 'NayaPay', icon: '💳' },
-  { id: 'card', name: 'Credit/Debit Card', icon: '💳' },
 ];
 
 type Step = 'information' | 'payment';
@@ -28,7 +22,7 @@ export default function Checkout() {
 
   const [formData, setFormData] = useState({
     email: user?.email || '',
-    fullName: user?.name || '',
+    fullName: user?.fullName || '',
     address: '',
     city: '',
     province: 'Punjab',
@@ -43,14 +37,49 @@ export default function Checkout() {
 
   const handlePlaceOrder = async () => {
     setIsProcessing(true);
-    // Simulate processing
-    await new Promise((resolve) => setTimeout(resolve, 2000));
-    clearCart();
-    addToast('Order placed successfully! Thank you for shopping with ZaiNoor.', 'success');
-    navigate('/dashboard/orders');
+    try {
+      // Combine form fields into the required shippingAddress string format
+      const fullAddress = `${formData.address}, ${formData.city}, ${formData.province} (Phone: ${formData.phone}, Name: ${formData.fullName}, Email: ${formData.email})`;
+
+      // Map cart items to match backend controller expectations (including productId and qty)
+      const payloadItems = items.map((item) => ({
+        productId: item.product.id,
+        name: item.product.name || (item.product as any).title,
+        price: item.product.salePrice || item.product.price,
+        qty: item.quantity,
+        size: item.size,
+        color: item.color,
+      }));
+
+      const res = await fetch('http://localhost:5001/api/orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: user?.id,
+          shippingAddress: fullAddress,
+          totalAmount: total,
+          items: payloadItems,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok) {
+        clearCart();
+        addToast('Order placed successfully!', 'success');
+        navigate('/dashboard'); // Adjusted to match your user dashboard route
+      } else {
+        addToast(data.message || 'Checkout failed', 'error');
+      }
+    } catch (err) {
+      console.error('Order submission error:', err);
+      addToast('Server connection failed', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
-  const shipping = subtotal() > 5000 ? 0 : 250;
+  const shipping = 300;
   const total = subtotal() + shipping;
 
   if (items.length === 0) {
@@ -195,38 +224,6 @@ export default function Checkout() {
                     </button>
                   ))}
                 </div>
-
-                {/* Card fields for card payment */}
-                {selectedPayment === 'card' && (
-                  <div className="space-y-4 p-4 border border-[#EFEFEF]">
-                    <div>
-                      <label className="font-body text-xs uppercase tracking-wider text-[#424242] mb-1 block">Card Number</label>
-                      <input
-                        type="text"
-                        placeholder="1234 5678 9012 3456"
-                        className="w-full border-b border-[#C1C1C1] py-2 font-body outline-none focus:border-black transition-colors bg-transparent"
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="font-body text-xs uppercase tracking-wider text-[#424242] mb-1 block">Expiry</label>
-                        <input
-                          type="text"
-                          placeholder="MM/YY"
-                          className="w-full border-b border-[#C1C1C1] py-2 font-body outline-none focus:border-black transition-colors bg-transparent"
-                        />
-                      </div>
-                      <div>
-                        <label className="font-body text-xs uppercase tracking-wider text-[#424242] mb-1 block">CVV</label>
-                        <input
-                          type="text"
-                          placeholder="123"
-                          className="w-full border-b border-[#C1C1C1] py-2 font-body outline-none focus:border-black transition-colors bg-transparent"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                )}
 
                 <button
                   onClick={handlePlaceOrder}

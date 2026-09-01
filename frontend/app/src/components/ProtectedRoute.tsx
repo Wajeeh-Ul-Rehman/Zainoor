@@ -1,6 +1,6 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
-import { useAuth } from '../hooks/AuthProvider';
+import { useAuthStore } from '@/stores/authStore';
 
 /**
  * Wrap a route element with this to require login, and optionally admin status.
@@ -15,7 +15,8 @@ export default function ProtectedRoute({
   children: React.ReactNode;
   adminOnly?: boolean;
 }) {
-  const { isAuthenticated, user } = useAuth();
+  const { user } = useAuthStore();
+  const isAuthenticated = !!user;
 
   if (!isAuthenticated) return <Navigate to="/" replace />;
   if (adminOnly && !user?.isAdmin) return <Navigate to="/dashboard" replace />;

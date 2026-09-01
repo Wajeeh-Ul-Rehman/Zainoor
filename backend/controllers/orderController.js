@@ -1,7 +1,7 @@
 const db = require('../db');
 const { generateUserId } = require('../utils/idGenerator');
 const { getIO } = require('../utils/socket');
-const { notifyAdmins } = require('../utils/mailer');
+const { notifyNewOrder, notifyOrderCancelled } = require('../utils/mailer');
 
 const ORDER_STATUSES = [
   'Pending',
@@ -18,14 +18,32 @@ const parseOrder = (row) => ({
   ...row,
   items: row.items ? JSON.parse(row.items) : [],
   statusHistory: row.statusHistory ? JSON.parse(row.statusHistory) : [],
+  cancelledBy: row.cancelledBy || null,
 });
+
+// GET /api/orders/user/:userId — customer's personal order history
+exports.getUserOrders = (req, res) => {
+  const { userId } = req.params;
+  try {
+    const rows = db
+      .prepare(
+        `SELECT * FROM orders 
+         WHERE userId = ? 
+         ORDER BY orderDate DESC, orderTime DESC`
+      )
+      .all(userId);
+    res.status(200).json(rows.map(parseOrder));
+  } catch (err) {
+    res.status(500).json({ message: 'Could not load user orders', error: err.message });
+  }
+};
 
 // GET /api/orders — flat list for the admin Orders tab, joined with customer info
 exports.getAllOrders = (req, res) => {
   try {
     const rows = db
       .prepare(
-        `SELECT o.*, u.fullName AS customerName, u.email AS customerEmail
+        `SELECT o.*, u.fullName AS customerName, u.email AS customerEmail, u.phone AS customerPhone
          FROM orders o
          LEFT JOIN users u ON u.id = o.userId
          ORDER BY o.orderDate DESC, o.orderTime DESC`
@@ -56,7 +74,7 @@ exports.createOrder = (req, res) => {
        VALUES (?, ?, ?, ?, 'Pending', ?, ?, ?, ?)`
     ).run(id, userId, orderDate, orderTime, shippingAddress, totalAmount, JSON.stringify(items), statusHistory);
 
-    // Best-effort stock decrement — a missing/blank productId on a line item is skipped, not fatal
+    // Best-effort stock decrement
     const decrementStock = db.prepare(
       'UPDATE products SET stock = MAX(stock - ?, 0), unitsSold = unitsSold + ? WHERE id = ?'
     );
@@ -64,22 +82,18 @@ exports.createOrder = (req, res) => {
       if (item.productId) decrementStock.run(item.qty || 1, item.qty || 1, item.productId);
     }
 
-    const user = db.prepare('SELECT fullName, email FROM users WHERE id = ?').get(userId);
+    const user = db.prepare('SELECT fullName, email, phone FROM users WHERE id = ?').get(userId);
+    const orderData = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
     const order = parseOrder({
-      ...db.prepare('SELECT * FROM orders WHERE id = ?').get(id),
+      ...orderData,
       customerName: user?.fullName,
       customerEmail: user?.email,
     });
 
     getIO().emit('order:created', order);
 
-    notifyAdmins(
-      `New order ${id} — Rs ${totalAmount}`,
-      `<p><strong>${user?.fullName || 'A customer'}</strong> (${user?.email || userId}) just placed an order.</p>
-       <p><strong>Order ID:</strong> ${id}<br/>
-       <strong>Total:</strong> Rs ${totalAmount}<br/>
-       <strong>Shipping to:</strong> ${shippingAddress}</p>`
-    );
+    // Notify admins via detailed email
+    notifyNewOrder(order, user);
 
     res.status(201).json({ message: 'Order placed', order });
   } catch (err) {
@@ -90,7 +104,7 @@ exports.createOrder = (req, res) => {
 // PATCH /api/orders/:id/status — admin moves an order through the lifecycle
 exports.updateOrderStatus = (req, res) => {
   const { id } = req.params;
-  const { status } = req.body;
+  const { status, cancelledBy } = req.body;
 
   if (!ORDER_STATUSES.includes(status)) {
     return res.status(400).json({ message: `Status must be one of: ${ORDER_STATUSES.join(', ')}` });
@@ -103,13 +117,22 @@ exports.updateOrderStatus = (req, res) => {
     const history = existing.statusHistory ? JSON.parse(existing.statusHistory) : [];
     history.push({ status, at: new Date().toISOString() });
 
-    db.prepare('UPDATE orders SET orderStatus = ?, statusHistory = ? WHERE id = ?').run(
+    // Determine cancelledBy value safely
+    let newCancelledBy = existing.cancelledBy || null;
+    if (status === 'Cancelled') {
+      newCancelledBy = cancelledBy || 'admin';
+    } else {
+      newCancelledBy = null;
+    }
+
+    db.prepare('UPDATE orders SET orderStatus = ?, statusHistory = ?, cancelledBy = ? WHERE id = ?').run(
       status,
       JSON.stringify(history),
+      newCancelledBy,
       id
     );
 
-    // Only restock + email once, on the transition INTO Cancelled
+    // If newly cancelled, restock items and notify admins
     if (status === 'Cancelled' && existing.orderStatus !== 'Cancelled') {
       const items = existing.items ? JSON.parse(existing.items) : [];
       const restock = db.prepare('UPDATE products SET stock = stock + ? WHERE id = ?');
@@ -117,26 +140,23 @@ exports.updateOrderStatus = (req, res) => {
         if (item.productId) restock.run(item.qty || 1, item.productId);
       }
 
-      const user = db.prepare('SELECT fullName, email FROM users WHERE id = ?').get(existing.userId);
-      notifyAdmins(
-        `Order ${id} cancelled`,
-        `<p>Order <strong>${id}</strong> for ${user?.fullName || existing.userId} (${user?.email || ''}) was cancelled.</p>`
-      );
+      const customer = db.prepare('SELECT fullName, email, phone FROM users WHERE id = ?').get(existing.userId);
+      const updatedOrder = parseOrder(db.prepare('SELECT * FROM orders WHERE id = ?').get(id));
+      
+      notifyOrderCancelled(updatedOrder, customer, newCancelledBy);
     }
 
     const order = parseOrder(db.prepare('SELECT * FROM orders WHERE id = ?').get(id));
-    getIO().emit('order:statusUpdated', { id, orderStatus: status, statusHistory: history });
+    getIO().emit('order:statusUpdated', { id, orderStatus: status, statusHistory: history, cancelledBy: newCancelledBy });
     res.status(200).json(order);
   } catch (err) {
     res.status(500).json({ message: 'Could not update order status', error: err.message });
   }
 };
 
-// POST /api/orders/:id/cancel — customer-initiated cancellation.
-// Kept as its own endpoint (rather than requiring the customer to call the
-// admin-style status route) so you can apply different auth rules to each later.
+// POST /api/orders/:id/cancel — customer-initiated cancellation
 exports.cancelOrder = (req, res) => {
-  req.body = { status: 'Cancelled' };
+  req.body = { status: 'Cancelled', cancelledBy: 'user' };
   exports.updateOrderStatus(req, res);
 };
 

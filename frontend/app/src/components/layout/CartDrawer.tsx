@@ -5,13 +5,13 @@ import { useUIStore } from '@/stores/uiStore';
 
 export default function CartDrawer() {
   const { isCartOpen, setCartOpen, items, removeItem, updateQuantity, subtotal } = useCartStore();
-  const { isAuthenticated } = useAuthStore();
+  const { user } = useAuthStore();
   const { openAuthModal } = useUIStore();
   const navigate = useNavigate();
 
   const handleCheckout = () => {
     setCartOpen(false);
-    if (!isAuthenticated) {
+    if (!user) {
       openAuthModal('login');
       return;
     }
@@ -63,54 +63,70 @@ export default function CartDrawer() {
             </div>
           ) : (
             <div className="flex flex-col gap-6">
-              {items.map((item) => (
-                <div key={`${item.product.id}-${item.size}-${item.color}`} className="flex gap-4">
-                  {/* Image */}
-                  <div className="w-20 h-[100px] flex-shrink-0 bg-[#EFEFEF] overflow-hidden">
-                    <img
-                      src={item.product.image}
-                      alt={item.product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
+              {items.map((item) => {
+                const product = item.product || {};
+                const productName = product.name || (product as any).title || 'Product';
+                let productImage = product.image || (product as any).imageUrl || (product as any).images?.[0] || '';
 
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-body font-medium text-sm truncate">{item.product.name}</h3>
-                    <p className="font-body text-xs text-[#424242] mt-0.5">
-                      {item.color} / {item.size}
-                    </p>
-                    <p className="font-body font-semibold text-sm mt-1">
-                      Rs. {(item.product.salePrice || item.product.price).toLocaleString()}
-                    </p>
+                if (productImage.startsWith('/')) {
+                  productImage = `http://localhost:5001${productImage}`;
+                }
 
-                    {/* Quantity */}
-                    <div className="flex items-center gap-2 mt-2">
-                      <button
-                        onClick={() => updateQuantity(item.product.id, item.size, item.color, item.quantity - 1)}
-                        className="w-7 h-7 border border-[#EFEFEF] flex items-center justify-center font-body text-sm hover:border-black transition-colors"
-                      >
-                        -
-                      </button>
-                      <span className="w-9 h-7 border border-[#EFEFEF] flex items-center justify-center font-body text-sm">
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() => updateQuantity(item.product.id, item.size, item.color, item.quantity + 1)}
-                        className="w-7 h-7 border border-[#EFEFEF] flex items-center justify-center font-body text-sm hover:border-black transition-colors"
-                      >
-                        +
-                      </button>
-                      <button
-                        onClick={() => removeItem(item.product.id, item.size, item.color)}
-                        className="ml-auto font-body text-xs text-[#C1C1C1] hover:text-[#FF0000] transition-colors"
-                      >
-                        Remove
-                      </button>
+                return (
+                  <div key={`${product.id}-${item.size}-${item.color}`} className="flex gap-4">
+                    {/* Image Thumbnail */}
+                    <div className="w-20 h-24 bg-[#EFEFEF] shrink-0 overflow-hidden">
+                      {productImage ? (
+                        <img
+                          src={productImage}
+                          alt={productName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-neutral-400 font-body text-[10px]">
+                          No Image
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Info */}
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-body font-medium text-sm truncate">{productName}</h3>
+                      <p className="font-body text-xs text-[#424242] mt-0.5">
+                        {item.color} {item.color && item.size ? '/' : ''} {item.size}
+                      </p>
+                      <p className="font-body font-semibold text-sm mt-1">
+                        Rs. {(product.salePrice || product.price || 0).toLocaleString()}
+                      </p>
+
+                      {/* Quantity */}
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          onClick={() => updateQuantity(product.id, item.size, item.color, item.quantity - 1)}
+                          className="w-7 h-7 border border-[#EFEFEF] flex items-center justify-center font-body text-sm hover:border-black transition-colors"
+                        >
+                          -
+                        </button>
+                        <span className="w-9 h-7 border border-[#EFEFEF] flex items-center justify-center font-body text-sm">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(product.id, item.size, item.color, item.quantity + 1)}
+                          className="w-7 h-7 border border-[#EFEFEF] flex items-center justify-center font-body text-sm hover:border-black transition-colors"
+                        >
+                          +
+                        </button>
+                        <button
+                          onClick={() => removeItem(product.id, item.size, item.color)}
+                          className="ml-auto font-body text-xs text-[#C1C1C1] hover:text-[#FF0000] transition-colors"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

@@ -2,13 +2,26 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { Product } from '@/types';
 
+const UPLOADS_BASE = 'http://localhost:5001'; // Match your backend port
+
 interface ProductCardProps {
-  product: Product;
+  product: Product & { title?: string; images?: string[] };
   onQuickAdd?: (product: Product) => void;
 }
 
 export default function ProductCard({ product, onQuickAdd }: ProductCardProps) {
   const [isHovered, setIsHovered] = useState(false);
+
+  // Fallbacks for database vs static dummy properties
+  const productName = product.title || product.name || 'Product';
+  const rawImage = product.images?.[0] || product.image || '';
+  const productImage = rawImage.startsWith('http') || rawImage.startsWith('/') 
+    ? (rawImage.startsWith('/') ? `${UPLOADS_BASE}${rawImage}` : rawImage) 
+    : rawImage;
+
+  const productPrice = product.price || 0;
+  const isSaleActive = product.sale?.active || product.isSale;
+  const salePrice = product.sale?.price || product.salePrice;
 
   const handleQuickAdd = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -26,8 +39,8 @@ export default function ProductCard({ product, onQuickAdd }: ProductCardProps) {
         {/* Image */}
         <div className="relative aspect-[3/4] bg-[#EFEFEF] overflow-hidden">
           <img
-            src={product.image}
-            alt={product.name}
+            src={productImage}
+            alt={productName}
             className="w-full h-full object-cover transition-transform duration-400 group-hover:scale-105"
           />
 
@@ -37,7 +50,7 @@ export default function ProductCard({ product, onQuickAdd }: ProductCardProps) {
               New
             </span>
           )}
-          {product.isSale && (
+          {isSaleActive && (
             <span className="absolute top-3 left-3 bg-[#FF0000] text-white font-body font-semibold text-[10px] uppercase px-2.5 py-1">
               Sale
             </span>
@@ -58,21 +71,21 @@ export default function ProductCard({ product, onQuickAdd }: ProductCardProps) {
 
         {/* Info */}
         <div className="pt-3">
-          <h3 className="font-body font-medium text-sm text-black">{product.name}</h3>
+          <h3 className="font-body font-medium text-sm text-black">{productName}</h3>
           <div className="flex items-center gap-2 mt-1">
             <span className="font-body font-semibold text-sm">
-              Rs. {(product.salePrice || product.price).toLocaleString()}
+              Rs. {((isSaleActive && salePrice) ? salePrice : productPrice).toLocaleString()}
             </span>
-            {product.salePrice && (
+            {isSaleActive && salePrice && (
               <span className="font-body text-sm text-[#C1C1C1] line-through">
-                Rs. {product.price.toLocaleString()}
+                Rs. {productPrice.toLocaleString()}
               </span>
             )}
           </div>
 
-          {/* Color Swatches */}
+          {/* Color Swatches (Safely mapped with optional chaining) */}
           <div className="flex gap-1.5 mt-2">
-            {product.colors.map((color) => (
+            {product.colors?.map((color) => (
               <span
                 key={color}
                 className={`w-4 h-4 rounded-full border ${

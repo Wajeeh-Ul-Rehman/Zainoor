@@ -9,13 +9,6 @@ const quickLinks = [
   { label: 'Affiliate', path: '/affiliate' },
 ];
 
-const customerCare = [
-  'Shipping Info',
-  'Returns',
-  'Size Guide',
-  'Track Order',
-];
-
 export default function Footer() {
   return (
     <footer className="bg-black text-white">
@@ -27,10 +20,10 @@ export default function Footer() {
               ZAI NOOR
             </h3>
             <p className="font-body font-light text-xs text-[#C1C1C1] mt-3">
-              Premium Black & White Fashion
+              Premium Women Fashion
             </p>
             <p className="font-body font-light text-sm text-[#C1C1C1] mt-6 leading-relaxed">
-              Redefining style through the timeless elegance of black and white. Crafted in Pakistan, loved nationwide.
+              Redefining style through the timeless elegance of every fashion. Crafted in Pakistan, loved nationwide.
             </p>
           </div>
 
@@ -53,44 +46,9 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* Customer Care */}
-          <div>
-            <h4 className="font-body font-medium text-sm uppercase tracking-[0.05em] mb-6">
-              Customer Care
-            </h4>
-            <ul className="flex flex-col gap-3">
-              {customerCare.map((item) => (
-                <li key={item}>
-                  <span className="font-body text-sm text-[#C1C1C1] hover:text-white transition-colors cursor-pointer">
-                    {item}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          </div>
-
-          {/* Newsletter */}
-          <div>
-            <h4 className="font-body font-medium text-sm uppercase tracking-[0.05em] mb-6">
-              Subscribe for Updates
-            </h4>
-            <div className="flex items-center border-b border-[#424242] focus-within:border-white transition-colors">
-              <input
-                type="email"
-                placeholder="Your email"
-                className="flex-1 bg-transparent py-2 font-body text-sm text-white placeholder-[#C1C1C1] outline-none"
-              />
-              <button className="p-2 hover:opacity-70 transition-opacity" aria-label="Subscribe">
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="5" y1="12" x2="19" y2="12" />
-                  <polyline points="12 5 19 12 12 19" />
-                </svg>
-              </button>
-            </div>
-
             {/* Social */}
             <div className="flex gap-4 mt-8">
-              <a href="#" className="text-white hover:text-[#FF0000] transition-colors" aria-label="Instagram">
+              <a href="https://www.instagram.com/zainoorpk?utm_source=ig_web_button_share_sheet&igsi=ZDNlZDc0MzIxNw==" className="text-white hover:text-[#FF0000] transition-colors" aria-label="Instagram">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2" y="2" width="20" height="20" rx="5" />
                   <circle cx="12" cy="12" r="5" />
@@ -109,18 +67,10 @@ export default function Footer() {
         {/* Bottom Bar */}
         <div className="mt-16 pt-6 border-t border-[#424242] flex flex-col md:flex-row justify-between items-center gap-4">
           <p className="font-body font-light text-xs text-[#C1C1C1]">
-            &copy; 2024 ZaiNoor. All rights reserved.
-          </p>
-
-          {/* Payment Icons */}
-          <div className="flex items-center gap-4">
-            <span className="font-body text-xs text-[#C1C1C1] uppercase tracking-wider">JazzCash</span>
-            <span className="font-body text-xs text-[#C1C1C1] uppercase tracking-wider">EasyPaisa</span>
-            <span className="font-body text-xs text-[#C1C1C1] uppercase tracking-wider">Visa</span>
-            <span className="font-body text-xs text-[#C1C1C1] uppercase tracking-wider">Mastercard</span>
-          </div>
+            &copy; 2026 ZaiNoor. All rights reserved.
+          </p>       
         </div>
-      </div>
+      
     </footer>
   );
 }

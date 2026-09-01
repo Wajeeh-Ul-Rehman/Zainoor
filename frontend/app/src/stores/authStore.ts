@@ -2,6 +2,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+
 interface User {
   id: string;
   fullName: string;
@@ -13,8 +14,12 @@ interface User {
 interface AuthState {
   user: User | null;
   login: (email: string, password: string) => Promise<{ success: boolean; user?: User; error?: string }>;
+  register: (data: { fullName: string; email: string; phone?: string; password: string }) => Promise<{ success: boolean; user?: User; error?: string }>;
+  googleLogin: (credential: string) => Promise<{ success: boolean; user?: User; error?: string }>;
   logout: () => void;
 }
+
+
 
 const BACKEND_URL = 'http://localhost:5001/api/auth';
 
@@ -34,6 +39,34 @@ export const useAuthStore = create<AuthState>()(
 
           if (!res.ok) {
             return { success: false, error: data.message || 'Google login failed' };
+          }
+
+          const userData: User = {
+            id: data.user.id,
+            fullName: data.user.fullName,
+            email: data.user.email,
+            phone: data.user.phone,
+            isAdmin: Boolean(data.user.isAdmin),
+          };
+
+          set({ user: userData });
+          return { success: true, user: userData };
+        } catch (err: any) {
+          return { success: false, error: 'Server connection failed' };
+        }
+      },
+      register: async (credentials) => {
+        try {
+          const res = await fetch(`${BACKEND_URL}/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(credentials),
+          });
+
+          const data = await res.json();
+
+          if (!res.ok) {
+            return { success: false, error: data.message || 'Registration failed' };
           }
 
           const userData: User = {

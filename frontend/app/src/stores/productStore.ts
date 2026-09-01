@@ -9,6 +9,11 @@ export interface Sale {
   endDate: string | null;
 }
 
+export interface ProductStore {
+  products: Product[];
+  fetchProducts: () => Promise<void>;
+  addProduct: (product: Product) => void;
+}
 export interface Product {
   id: string;
   title: string;
@@ -53,53 +58,86 @@ interface ProductState {
   initRealtime: () => () => void;
 }
 
-export const useProductStore = create<ProductState>((set) => ({
+export const useProductStore = create<ProductState>((set, get) => ({
   products: [],
   loading: false,
   error: null,
 
-  fetchProducts: async (includeHidden = false) => {
-    set({ loading: true, error: null });
+  // Fetches all products on page load/refresh
+  fetchProducts: async () => {
     try {
-      const res = await fetch(`${API_BASE}${includeHidden ? '?all=true' : ''}`);
-      const data = await res.json();
-      set({ products: data, loading: false });
-    } catch {
-      set({ loading: false, error: 'Could not load products.' });
+      const response = await fetch('http://localhost:5001/api/products');
+      const parseProduct = (p: any) => ({
+        ...p,
+        images: typeof p.images === 'string' ? JSON.parse(p.images || '[]') : (p.images || []),
+        sizeCharts: typeof p.sizeCharts === 'string' ? JSON.parse(p.sizeCharts || '{}') : (p.sizeCharts || {}),
+        sale: typeof p.sale === 'string' ? JSON.parse(p.sale || '{}') : (p.sale || {}),
+      }); 
+      if (!response.ok) throw new Error('Network response was not ok');
+      const data = await response.json();
+      set({ products: data.map(parseProduct) });
+    } catch (error) {
+      console.error("Failed to fetch products:", error);
     }
   },
 
-  createProduct: async (data) => {
+  // Instantly adds a single product to the UI without refreshing
+  addProduct: (newProduct) => set((state) => ({ 
+    products: [...state.products, newProduct] 
+  })),
+
+  createProduct: async (productData: any) => {
     try {
-      const res = await fetch(API_BASE, {
+      const res = await fetch('http://localhost:5001/api/products', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          title: productData.title,
+          description: productData.description,
+          price: productData.price,
+          cost: productData.cost,
+          stock: productData.stock,
+          category: productData.category,
+          images: productData.images,
+          sizeCharts: productData.sizeCharts || {},
+        }),
       });
-      const body = await res.json();
-      if (!res.ok) return { success: false, error: body.message };
-      // No need to push into state manually — the 'product:created' socket event does it,
-      // including for every other open tab/browser at the same time.
-      return { success: true };
-    } catch {
-      return { success: false, error: 'Could not reach the server.' };
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.message };
+      
+      get().fetchProducts();
+      return { success: true, product: data.product };
+    } catch (err: any) {
+      return { success: false, error: err.message };
     }
   },
 
-  updateProduct: async (id, data) => {
+  updateProduct: async (id: string, productData: any) => {
     try {
-      const res = await fetch(`${API_BASE}/${id}`, {
+      const res = await fetch(`http://localhost:5001/api/products/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          title: productData.title,
+          description: productData.description,
+          price: productData.price,
+          cost: productData.cost,
+          stock: productData.stock,
+          category: productData.category,
+          images: productData.images,
+          sizeCharts: productData.sizeCharts || {},
+        }),
       });
-      const body = await res.json();
-      if (!res.ok) return { success: false, error: body.message };
-      return { success: true };
-    } catch {
-      return { success: false, error: 'Could not reach the server.' };
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.message };
+      
+      get().fetchProducts();
+      return { success: true, product: data.product };
+    } catch (err: any) {
+      return { success: false, error: err.message };
     }
-  },
+  }, 
+
 
   deleteProduct: async (id) => {
     try {

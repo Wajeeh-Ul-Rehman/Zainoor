@@ -83,7 +83,15 @@ export default function AuthModal() {
     if (!validateSignup()) return;
     setSubmitting(true);
     setFormError('');
-    const result = await register({ name, email: signupEmail, phone, password: signupPassword });
+    
+    // Pass fullName (mapped from name state) and clear out the trailing error
+    const result = await register({ 
+      fullName: name, 
+      email: signupEmail, 
+      phone, 
+      password: signupPassword 
+    });
+    
     setSubmitting(false);
 
     if (!result.success) {
