@@ -1,39 +1,14 @@
-import { API_URL } from '../../config';
 import { create } from 'zustand';
+import { API_URL } from '../../config';
 import { socket } from '@/lib/socket';
-
-export interface Sale {
-  active: boolean;
-  price: number | null;
-  unlimited: boolean;
-  startDate: string | null;
-  endDate: string | null;
-}
-
-export interface ProductStore {
-  products: Product[];
-  fetchProducts: () => Promise<void>;
-  addProduct: (product: Product) => void;
-}
-export interface Product {
-  id: string;
-  title: string;
-  description: string;
-  price: number;
-  cost: number;
-  stock: number;
-  category: string;
-  images: string[];
-  hidden: boolean;
-  unitsSold: number;
-  sale: Sale;
-}
+import type { Product, Sale } from '../types';
 
 const API_BASE = `${API_URL}/api/products`;
 
 interface ApiResult {
   success: boolean;
   error?: string;
+  product?: Product;
 }
 
 interface ProductState {
@@ -41,21 +16,13 @@ interface ProductState {
   loading: boolean;
   error: string | null;
   fetchProducts: (includeHidden?: boolean) => Promise<void>;
-  createProduct: (data: {
-    title: string;
-    description: string;
-    price: number;
-    cost: number;
-    stock: number;
-    category: string;
-    images: string[];
-  }) => Promise<ApiResult>;
+  createProduct: (data: Partial<Product>) => Promise<ApiResult>;
   updateProduct: (id: string, data: Partial<Product>) => Promise<ApiResult>;
   deleteProduct: (id: string) => Promise<ApiResult>;
   toggleHide: (id: string) => Promise<void>;
   setSale: (id: string, sale: Sale) => Promise<void>;
   uploadImages: (files: File[]) => Promise<string[]>;
-  /** Call once (e.g. in App.tsx) to start listening for live updates. Returns a cleanup function. */
+  addProduct: (product: Product) => void;
   initRealtime: () => () => void;
 }
 
@@ -64,10 +31,9 @@ export const useProductStore = create<ProductState>((set, get) => ({
   loading: false,
   error: null,
 
-  // Fetches all products on page load/refresh
   fetchProducts: async () => {
     try {
-      const response = await fetch(`${API_URL}/api/products`);
+      const response = await fetch(API_BASE);
       const parseProduct = (p: any) => ({
         ...p,
         images: typeof p.images === 'string' ? JSON.parse(p.images || '[]') : (p.images || []),
@@ -82,29 +48,28 @@ export const useProductStore = create<ProductState>((set, get) => ({
     }
   },
 
-  // Instantly adds a single product to the UI without refreshing
   addProduct: (newProduct) => set((state) => ({ 
-    products: [...state.products, newProduct] 
+    products: [newProduct, ...state.products.filter(p => p.id !== newProduct.id)] 
   })),
 
-  createProduct: async (productData: any) => {
+  createProduct: async (productData) => {
     try {
-      const res = await fetch(`${API_URL}/api/products`, {
+      const res = await fetch(API_BASE, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: productData.title,
+          title: productData.title || productData.name,
           description: productData.description,
           price: productData.price,
-          cost: productData.cost,
+          cost: productData.cost || 0,
           stock: productData.stock,
           category: productData.category,
-          images: productData.images,
+          images: productData.images || (productData.image ? [productData.image] : []),
           sizeCharts: productData.sizeCharts || {},
         }),
       });
       const data = await res.json();
-      if (!res.ok) return { success: false, error: data.message };
+      if (!res.ok) return { success: false, error: data.message || data.error };
       
       get().fetchProducts();
       return { success: true, product: data.product };
@@ -113,24 +78,24 @@ export const useProductStore = create<ProductState>((set, get) => ({
     }
   },
 
-  updateProduct: async (id: string, productData: any) => {
+  updateProduct: async (id, productData) => {
     try {
-      const res = await fetch(`${API_URL}/api/products/${id}`, {
+      const res = await fetch(`${API_BASE}/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title: productData.title,
+          title: productData.title || productData.name,
           description: productData.description,
           price: productData.price,
-          cost: productData.cost,
+          cost: productData.cost || 0,
           stock: productData.stock,
           category: productData.category,
-          images: productData.images,
+          images: productData.images || (productData.image ? [productData.image] : []),
           sizeCharts: productData.sizeCharts || {},
         }),
       });
       const data = await res.json();
-      if (!res.ok) return { success: false, error: data.message };
+      if (!res.ok) return { success: false, error: data.message || data.error };
       
       get().fetchProducts();
       return { success: true, product: data.product };
@@ -139,12 +104,11 @@ export const useProductStore = create<ProductState>((set, get) => ({
     }
   }, 
 
-
   deleteProduct: async (id) => {
     try {
       const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
       const body = await res.json();
-      if (!res.ok) return { success: false, error: body.message };
+      if (!res.ok) return { success: false, error: body.message || body.error };
       return { success: true };
     } catch {
       return { success: false, error: 'Could not reach the server.' };
@@ -166,7 +130,7 @@ export const useProductStore = create<ProductState>((set, get) => ({
   uploadImages: async (files) => {
     const formData = new FormData();
     files.forEach((f) => formData.append('images', f));
-    const res = await fetch(`${API_BASE}/upload`, { method: 'POST', body: formData });
+    const res = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: formData });
     const body = await res.json();
     return (body.urls as string[]) || [];
   },
@@ -180,7 +144,8 @@ export const useProductStore = create<ProductState>((set, get) => ({
         products: state.products.map((p) => (p.id === product.id ? product : p)),
       }));
     };
-    const onDeleted = ({ id }: { id: string }) => {
+    const onDeleted = (payload: any) => {
+      const id = typeof payload === 'string' ? payload : payload.id;
       set((state) => ({ products: state.products.filter((p) => p.id !== id) }));
     };
 

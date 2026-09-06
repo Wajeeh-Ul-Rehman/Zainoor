@@ -63,12 +63,12 @@ function StatusBadge({ status }: { status: string }) {
 export default function UserDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, logout, updateProfile } = useAuthStore();
+  const { user, logout, updateProfile } = useAuthStore() as any;
   const { addToast } = useUIStore();
   const currentTab = location.pathname.split('/').pop() || 'orders';
 
   const [formData, setFormData] = useState({
-    name: user?.name || '',
+    name: (user as any)?.name || user?.fullName || '',
     email: user?.email || '',
     phone: user?.phone || '',
   });
@@ -217,7 +217,7 @@ export default function UserDashboard() {
               <div className="flex justify-between items-start">
                 <div>
                   <span className="font-body text-xs uppercase tracking-wider bg-black text-white px-2 py-0.5">Default</span>
-                  <p className="font-body font-medium mt-3">{user?.name}</p>
+                  <p className="font-body font-medium mt-3">{user?.fullName || (user as any)?.name || 'User'}</p>
                   <p className="font-body text-sm text-[#424242] mt-1">{user?.phone}</p>
                 </div>
                 <button className="font-body text-sm text-[#424242] hover:text-black">Edit</button>
@@ -327,10 +327,10 @@ export default function UserDashboard() {
         <aside className="w-full lg:w-[260px] bg-black text-white lg:min-h-screen lg:fixed lg:left-0 lg:top-0 lg:bottom-0 p-6 lg:p-10 lg:pt-24">
           <div className="flex items-center gap-3 mb-8">
             <div className="w-12 h-12 lg:w-16 lg:h-16 rounded-full bg-[#424242] flex items-center justify-center font-body font-semibold text-lg">
-              {user?.name?.charAt(0) || 'U'}
+              {(user?.fullName || (user as any)?.name || 'U').charAt(0)}
             </div>
             <div>
-              <p className="font-body font-semibold text-sm">{user?.name}</p>
+              <p className="font-body font-semibold text-sm">{user?.fullName || (user as any)?.name || 'User'}</p>
               <p className="font-body text-xs text-[#C1C1C1]">{user?.email}</p>
             </div>
           </div>

@@ -264,7 +264,7 @@ export default function Checkout() {
                 </div>
                 <div className="flex justify-between font-body text-sm">
                   <span>Shipping</span>
-                  <span>{shipping === 0 ? 'Free' : `Rs. ${shipping.toLocaleString()}`}</span>
+                  <span>{(shipping as number) === 0 ? 'Free' : `Rs. ${shipping.toLocaleString()}`}</span>
                 </div>
                 <div className="flex justify-between font-body font-semibold text-lg pt-4 border-t border-black">
                   <span>Total</span>

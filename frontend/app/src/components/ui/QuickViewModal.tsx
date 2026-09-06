@@ -34,6 +34,14 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
   const [activeImageIndex, setActiveImageIndex] = useState(0);
   const activeImage = allImages[activeImageIndex] || '';
 
+  const handlePrevImage = () => {
+    setActiveImageIndex((prev) => (prev === 0 ? allImages.length - 1 : prev - 1));
+  };
+
+  const handleNextImage = () => {
+    setActiveImageIndex((prev) => (prev === allImages.length - 1 ? 0 : prev + 1));
+  };
+
   // 1. Initialize size to empty string to force manual selection
   const [selectedSize, setSelectedSize] = useState(''); 
   const [sizeError, setSizeError] = useState(false); // Tracks if user tried adding without a size
@@ -79,13 +87,36 @@ export default function QuickViewModal({ product, onClose }: QuickViewModalProps
         <div className="grid grid-cols-1 lg:grid-cols-2">
           {/* Image Gallery */}
           <div className="flex flex-col bg-[#EFEFEF]">
-            <div className="aspect-[3/4] lg:h-full relative w-full">
+            <div className="aspect-[3/4] lg:h-full relative w-full group">
               {activeImage ? (
                 <img src={activeImage} alt={productName} className="absolute inset-0 w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-neutral-400 font-body">
                   No Image Available
                 </div>
+              )}
+
+              {allImages.length > 1 && (
+                <>
+                  <button
+                    onClick={handlePrevImage}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black p-2 rounded-full shadow-md transition-all opacity-80 hover:opacity-100 z-10"
+                    aria-label="Previous image"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="15 18 9 12 15 6" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={handleNextImage}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/80 hover:bg-white text-black p-2 rounded-full shadow-md transition-all opacity-80 hover:opacity-100 z-10"
+                    aria-label="Next image"
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="9 18 15 12 9 6" />
+                    </svg>
+                  </button>
+                </>
               )}
             </div>
             

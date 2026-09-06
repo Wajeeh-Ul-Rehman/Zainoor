@@ -6,7 +6,8 @@ import {
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
-import { useProductStore, type Product, type Sale } from '@/stores/productStore';
+import { useProductStore } from '@/stores/productStore';
+import type { Product, Sale } from '../types';
 import { useOrderStore, ORDER_STATUSES, type OrderStatus } from '@/stores/orderStore';
 import { useUserStore } from '@/stores/userStore';
 
@@ -284,8 +285,8 @@ function ProductFormModal({
     setSelectedGarments([]);
   }, [gender, stitching, pieces]);
 
-  const availablePieces = Object.keys(CATEGORIES[gender]?.[stitching] || {});
-  const availableGarments = CATEGORIES[gender]?.[stitching]?.[pieces] || [];
+ const availablePieces = Object.keys((CATEGORIES as any)[gender]?.[stitching] || {});
+const availableGarments = (CATEGORIES as any)[gender]?.[stitching]?.[pieces] || [];
 
   const toggleGarment = (garment: string) => {
     setSelectedGarments((prev) =>
@@ -509,7 +510,7 @@ function ProductFormModal({
 function SaleModal({ product, onClose }: { product: Product; onClose: () => void }) {
   const { setSale } = useProductStore();
   const { addToast } = useUIStore();
-  const [sale, setSaleState] = useState<Sale>(product.sale);
+  const [sale, setSaleState] = useState<Sale>(product.sale || { active: false, price: 0 });
   const [saving, setSaving] = useState(false);
 
   const submit = async (e: React.FormEvent) => {
@@ -636,7 +637,7 @@ export default function AdminDashboard() {
   }, 0);
   const lowStock = products.filter((p) => !p.hidden && p.stock <= 5);
 
-  const filteredProducts = products.filter((p) => p.title.toLowerCase().includes(productSearch.toLowerCase()));
+  const filteredProducts = products.filter((p) => (p.title || p.name || '').toLowerCase().includes(productSearch.toLowerCase()));;
   const filteredOrders = orders.filter(
     (o) =>
       (orderStatusFilter === 'All' || o.orderStatus === orderStatusFilter) &&
@@ -857,7 +858,7 @@ export default function AdminDashboard() {
                             </select>
                             {o.orderStatus === 'Cancelled' && (
                               <div className="text-[10px] text-rose-700 font-medium uppercase tracking-wider">
-                                Cancelled by {o.cancelledBy === 'user' ? 'User' : 'Admin'}
+                               Cancelled by {(o as any).cancelledBy === 'user' ? 'User' : 'Admin'}
                               </div>
                             )}
                           </div>
@@ -965,7 +966,7 @@ export default function AdminDashboard() {
               {filteredProducts.map((p) => (
                 <div key={p.id} className={`bg-white border border-neutral-200 flex flex-col ${p.hidden ? 'opacity-50' : ''}`}>
                   <div className="relative h-56 bg-neutral-100">
-                    {p.images[0] && <img src={`${UPLOADS_BASE}${p.images[0]}`} alt={p.title} className="w-full h-full object-cover" />}
+                   {p.images?.[0] && <img src={`${UPLOADS_BASE}${p.images[0]}`} alt={p.title || p.name} className="w-full h-full object-cover" />}
                     {p.hidden && <span className="absolute top-2 left-2 bg-black text-white text-[10px] uppercase tracking-widest px-2 py-0.5 font-body">Hidden</span>}
                     {p.stock === 0 && !p.hidden && <span className="absolute top-2 right-2 bg-rose-700 text-white text-[10px] uppercase tracking-widest px-2 py-0.5 font-body">Out of stock</span>}
                   </div>
@@ -973,12 +974,9 @@ export default function AdminDashboard() {
                     <div className="font-body text-[10px] tracking-[0.12em] uppercase text-neutral-400">{p.category}</div>
                     <h3 className="font-display text-lg leading-tight">{p.title}</h3>
                     <div className="font-display text-base">
-                      {p.sale.active ? (
-                        <span className="flex items-baseline gap-1.5">
-                          <span className="line-through text-neutral-400 text-sm">{rs(p.price)}</span>
-                          {rs(p.sale.price || 0)}
-                        </span>
-                      ) : rs(p.price)}
+                      {p.sale?.active ? (
+                      <span>{rs(p.sale.price || 0)}</span>
+                    )  : rs(p.price)}
                     </div>
                     <div className="font-body text-xs text-neutral-400">{p.stock} in stock · {p.unitsSold} sold</div>
 

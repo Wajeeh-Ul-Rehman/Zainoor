@@ -23,8 +23,7 @@ export default function MobileNav() {
   // Using the presence of the user object as a source of truth
   const isLoggedIn = !!user; 
   // Safely check for admin via boolean or role string
-  const isAdmin = user?.isAdmin === true || user?.role === 'admin';
-
+ const isAdmin = user?.isAdmin === true || (user as any)?.role === 'admin';
   const location = useLocation();
 
   const handleLinkClick = () => {

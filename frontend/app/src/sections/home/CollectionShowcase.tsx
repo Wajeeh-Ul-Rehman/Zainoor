@@ -1,8 +1,6 @@
 import { useRef, useEffect } from 'react';
-import { Link } from 'react-router-dom';
 import gsap from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
-import { products } from '@/data/products';
 import { useCartStore } from '@/stores/cartStore';
 import { useProductStore } from '@/stores/productStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -12,23 +10,25 @@ gsap.registerPlugin(ScrollTrigger);
 
 export default function CollectionShowcase() {
   const { products, fetchProducts } = useProductStore();
+  
   useEffect(() => {
     fetchProducts();
   }, [fetchProducts]);
+
   // Take only the latest few products for the home page showcase
   const displayedProducts = products.slice(0, 4);
 
-  const gridRef = useRef<HTMLDivElement>(null);
   const sectionRef = useRef<HTMLDivElement>(null);
   const { addItem } = useCartStore();
   const { addToast } = useUIStore();
 
   const handleQuickAdd = (product: typeof products[0]) => {
-    // Default to first available size and color
-    const size = product.sizes[Math.floor(product.sizes.length / 2)];
-    const color = product.colors[0];
+    const sizes = product.sizes || ['S', 'M', 'L', 'XL'];
+    const size = sizes[Math.floor(sizes.length / 2)] || 'S';
+    const colors = product.colors || ['Default'];
+    const color = colors[0] || 'Default';
     addItem(product, size, color);
-    addToast(`${product.name} added to cart`, 'success');
+    addToast(`${product.title || product.name} added to cart`, 'success');
   };
 
   useEffect(() => {
@@ -57,20 +57,17 @@ export default function CollectionShowcase() {
       tl.scrollTrigger?.kill();
       tl.kill();
     };
-  }, []);
-
-  // Split products into 3 columns
-  const leftProducts = products.filter((_, i) => i % 3 === 0);
-  const centerProducts = products.filter((_, i) => i % 3 === 1);
-  const rightProducts = products.filter((_, i) => i % 3 === 2);
+  }, [displayedProducts]);
 
   return (
-    <section className="py-16">
+    <section ref={sectionRef} className="py-16">
       <div className="container-main">
         <h2 className="font-display text-3xl mb-8">Latest Collection</h2>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
           {displayedProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
+            <div key={product.id} className="product-card-wrapper">
+              <ProductCard product={product} onQuickAdd={() => handleQuickAdd(product)} />
+            </div>
           ))}
         </div>
       </div>

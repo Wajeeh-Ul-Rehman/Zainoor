@@ -8,12 +8,11 @@ import { useUIStore } from '@/stores/uiStore';
 import ProductCard from '@/components/ui/ProductCard';
 import { useProductStore } from '../stores/productStore';
 import QuickViewModal from '@/components/ui/QuickViewModal';
-import { socket } from '@/lib/socket'; // <-- Imported Socket
+import { socket } from '@/lib/socket';
 
 gsap.registerPlugin(ScrollTrigger);
 
 export default function Products() {
-  // <-- Added addProduct, updateProduct, deleteProduct
   const { products, fetchProducts, addProduct, updateProduct, deleteProduct } = useProductStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState('all');
@@ -24,24 +23,20 @@ export default function Products() {
   const { addToast } = useUIStore();
   const gridRef = useRef<HTMLDivElement>(null);
 
-  // Fetch on Component Mount & Listen to Sockets
   useEffect(() => {
     fetchProducts();
 
-    // <-- Real-time socket listeners
     socket.on('product:created', (newProduct) => addProduct(newProduct));
-    socket.on('product:updated', (updatedProduct) => updateProduct(updatedProduct));
+    socket.on('product:updated', (updatedProduct) => updateProduct(updatedProduct.id, updatedProduct));
     socket.on('product:deleted', (productId) => deleteProduct(productId));
 
     return () => {
-      // <-- Cleanup listeners on unmount
       socket.off('product:created');
       socket.off('product:updated');
       socket.off('product:deleted');
     };
   }, [fetchProducts, addProduct, updateProduct, deleteProduct]);
 
-  // Check if a product is specified in URL for quick view
   useEffect(() => {
     const productId = searchParams.get('product');
     if (productId) {
@@ -50,9 +45,8 @@ export default function Products() {
         setQuickViewProduct(product);
       }
     }
-  }, [searchParams, products]); // <-- Added products to dependency array to catch live updates
+  }, [searchParams, products]);
 
-  // Scroll-triggered entrance
   useEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
@@ -79,35 +73,32 @@ export default function Products() {
       tl.scrollTrigger?.kill();
       tl.kill();
     };
-  }, [selectedCategory, selectedSort, priceRange, products]); // <-- Added products here so animations re-trigger if a product is added live
+  }, [selectedCategory, selectedSort, priceRange, products]);
 
   const filteredProducts = useMemo(() => {
     let result = [...products];
 
-    // Category filter
     if (selectedCategory !== 'all') {
-      result = result.filter((p) => p.category === selectedCategory);
+      result = result.filter((p) => p.category?.toLowerCase().includes(selectedCategory.toLowerCase()));
     }
 
-    // Price filter
     result = result.filter((p) => {
-      const price = p.salePrice || p.price;
+      const price = p.sale?.price || p.salePrice || p.price;
       return price <= priceRange;
     });
 
-    // Sort
     switch (selectedSort) {
       case 'price-low':
-        result.sort((a, b) => (a.salePrice || a.price) - (b.salePrice || b.price));
+        result.sort((a, b) => (a.sale?.price || a.salePrice || a.price) - (b.sale?.price || b.salePrice || b.price));
         break;
       case 'price-high':
-        result.sort((a, b) => (b.salePrice || b.price) - (a.salePrice || a.price));
+        result.sort((a, b) => (b.sale?.price || b.salePrice || b.price) - (a.sale?.price || a.salePrice || a.price));
         break;
       case 'newest':
         result.sort((a, b) => (b.isNew ? 1 : 0) - (a.isNew ? 1 : 0));
         break;
       case 'popular':
-        result.sort((a, b) => b.stock - a.stock);
+        result.sort((a, b) => (b.unitsSold || 0) - (a.unitsSold || 0));
         break;
     }
 
@@ -115,9 +106,10 @@ export default function Products() {
   }, [selectedCategory, selectedSort, priceRange, products]);
 
   const handleQuickAdd = (product: typeof products[0]) => {
-    // Note: ensure product.sizes and product.colors exist in your new SQLite DB schema!
-    const size = product.sizes?.[Math.floor(product.sizes.length / 2)] || 'Default';
-    const color = product.colors?.[0] || 'Default';
+    const sizes = product.sizes || ['S', 'M', 'L', 'XL'];
+    const size = sizes[Math.floor(sizes.length / 2)] || 'Default';
+    const colors = product.colors || ['Default'];
+    const color = colors[0] || 'Default';
     addItem(product, size, color);
     addToast(`${product.title || product.name} added to cart`, 'success');
   };
@@ -134,7 +126,6 @@ export default function Products() {
 
   return (
     <main>
-      {/* Hero Header */}
       <section className="bg-black pt-32 lg:pt-40 pb-16 lg:pb-20">
         <div className="container-main">
           <h1 className="font-display text-white text-4xl lg:text-6xl xl:text-[120px] leading-[0.8]">
@@ -143,11 +134,9 @@ export default function Products() {
         </div>
       </section>
 
-      {/* Filter Bar */}
       <section className="sticky top-16 lg:top-20 bg-white border-b border-[#EFEFEF] z-30">
         <div className="container-main py-4">
           <div className="flex flex-wrap items-center gap-4 lg:gap-6">
-            {/* Category */}
             <div className="flex items-center gap-2">
               <label className="font-body text-xs uppercase tracking-wider text-[#424242]">Category:</label>
               <select
@@ -163,7 +152,6 @@ export default function Products() {
               </select>
             </div>
 
-            {/* Sort */}
             <div className="flex items-center gap-2">
               <label className="font-body text-xs uppercase tracking-wider text-[#424242]">Sort:</label>
               <select
@@ -179,7 +167,6 @@ export default function Products() {
               </select>
             </div>
 
-            {/* Price Range */}
             <div className="flex items-center gap-3">
               <label className="font-body text-xs uppercase tracking-wider text-[#424242]">Max Price:</label>
               <input
@@ -194,7 +181,6 @@ export default function Products() {
               <span className="font-body text-sm">Rs. {priceRange.toLocaleString()}</span>
             </div>
 
-            {/* Results Count */}
             <span className="font-body text-xs text-[#C1C1C1] ml-auto">
               {filteredProducts.length} products
             </span>
@@ -202,7 +188,6 @@ export default function Products() {
         </div>
       </section>
 
-      {/* Product Grid */}
       <section className="py-10 lg:py-16">
         <div className="container-main">
           {filteredProducts.length === 0 ? (
@@ -223,10 +208,7 @@ export default function Products() {
               {filteredProducts.map((product) => (
                 <div key={product.id} className="product-card-wrapper">
                   <div onClick={() => handleQuickView(product)} className="cursor-pointer">
-                    <ProductCard product={product} onQuickAdd={(e) => {
-                      e.stopPropagation(); // <-- Prevents QuickView from opening when adding to cart
-                      handleQuickAdd(product);
-                    }} />
+                    <ProductCard product={product} onQuickAdd={() => handleQuickAdd(product)} />
                   </div>
                 </div>
               ))}
@@ -235,7 +217,6 @@ export default function Products() {
         </div>
       </section>
 
-      {/* Quick View Modal */}
       {quickViewProduct && (
         <QuickViewModal product={quickViewProduct} onClose={closeQuickView} />
       )}
