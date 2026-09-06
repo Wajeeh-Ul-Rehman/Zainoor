@@ -97,12 +97,24 @@ export const products: Product[] = [
 ];
 
 export const categories = [
-  { id: 'all', name: 'All' },
-  { id: 'kameez', name: 'Kameez' },
+{ id: 'all', name: 'All' },
+  { id: 'men', name: 'Men' },
+  { id: 'women', name: 'Women' },
+  { id: 'stitched', name: 'Stitched' },
+  { id: 'unstitched', name: 'Unstitched' },
   { id: 'shalwar', name: 'Shalwar' },
-  { id: 'shawls', name: 'Shawls' },
-  { id: 'formals', name: 'Formals' },
-  { id: 'accessories', name: 'Accessories' },
+  { id: 'kameez', name: 'Kameez' },
+  { id: 'kurti', name: 'Kurti' },
+  { id: 'trouser', name: 'Trouser' },
+  { id: 'shirt', name: 'Shirt' },
+  { id: 't-shirt', name: 'T-shirt' },
+  { id: 'polo shirt', name: 'Polo Shirt' },
+  { id: 'pant', name: 'Pant' },
+  { id: 'dupatta', name: 'Dupatta' },
+  { id: 'shawl', name: 'Shawl' },
+  { id: 'pajama', name: 'Pajama' },
+  { id: 'abaya', name: 'Abaya' },
+  { id: 'shameez', name: 'Shameez' },
 ];
 
 export const sortOptions = [

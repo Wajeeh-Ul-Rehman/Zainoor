@@ -12,8 +12,19 @@ const navLinks = [
 ];
 
 export default function MobileNav() {
-  const { isMobileNavOpen, setMobileNavOpen, openAuthModal } = useUIStore();
-  const { isAuthenticated, user, logout } = useAuthStore();
+  // Use selectors for stores to ensure reactivity
+  const isMobileNavOpen = useUIStore((state) => state.isMobileNavOpen);
+  const setMobileNavOpen = useUIStore((state) => state.setMobileNavOpen);
+  const openAuthModal = useUIStore((state) => state.openAuthModal);
+  
+  const user = useAuthStore((state) => state.user);
+  const logout = useAuthStore((state) => state.logout);
+  
+  // Using the presence of the user object as a source of truth
+  const isLoggedIn = !!user; 
+  // Safely check for admin via boolean or role string
+  const isAdmin = user?.isAdmin === true || user?.role === 'admin';
+
   const location = useLocation();
 
   const handleLinkClick = () => {
@@ -67,14 +78,14 @@ export default function MobileNav() {
 
           {/* Auth */}
           <div className="mt-auto">
-            {isAuthenticated ? (
+            {isLoggedIn ? (
               <div className="flex flex-col gap-4">
                 <Link
-                  to={user?.isAdmin ? '/admin' : '/dashboard'}
+                  to={isAdmin ? '/admin' : '/dashboard'}
                   onClick={handleLinkClick}
                   className="font-body text-white text-sm uppercase tracking-[0.05em]"
                 >
-                  {user?.isAdmin ? 'Admin Dashboard' : 'My Account'}
+                  {isAdmin ? 'Admin Dashboard' : 'My Account'}
                 </Link>
                 <button
                   onClick={() => {
@@ -92,7 +103,7 @@ export default function MobileNav() {
                   setMobileNavOpen(false);
                   openAuthModal('login');
                 }}
-                className="font-body text-white text-sm uppercase tracking-[0.05em]"
+                className="font-body text-white text-sm uppercase tracking-[0.05em] text-left"
               >
                 Log In / Sign Up
               </button>
@@ -100,14 +111,16 @@ export default function MobileNav() {
 
             {/* Social */}
             <div className="flex gap-4 mt-8">
-              <a href="#" className="text-white/60 hover:text-white transition-colors" aria-label="Instagram">
+              {/* Instagram */}
+              <a href="https://www.instagram.com/zainoorpk?utm_source=ig_web_button_share_sheet&stkn=ZDNlZDc0MzIxNw==" className="text-white/60 hover:text-white transition-colors" aria-label="Instagram">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="2" y="2" width="20" height="20" rx="5" />
                   <circle cx="12" cy="12" r="5" />
                   <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none" />
                 </svg>
               </a>
-              <a href="#" className="text-white/60 hover:text-white transition-colors" aria-label="Facebook">
+              {/* Facebook */}
+              <a href="https://www.facebook.com/share/1DjMUUn7cw/" className="text-white/60 hover:text-white transition-colors" aria-label="Facebook">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z" />
                 </svg>

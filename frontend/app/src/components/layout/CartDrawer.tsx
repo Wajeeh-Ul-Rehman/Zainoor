@@ -1,4 +1,4 @@
-import { API_URL } from '../../config';
+import { API_URL } from "../../../config";
 import { useNavigate } from 'react-router-dom';
 import { useCartStore } from '@/stores/cartStore';
 import { useAuthStore } from '@/stores/authStore';

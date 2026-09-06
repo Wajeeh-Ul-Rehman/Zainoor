@@ -11,7 +11,56 @@ import { useOrderStore, ORDER_STATUSES, type OrderStatus } from '@/stores/orderS
 import { useUserStore } from '@/stores/userStore';
 
 const UPLOADS_BASE = API_URL;
-const CATEGORIES = ['Outerwear', 'Dresses', 'Tops', 'Bottoms', 'Accessories'];
+export const CATEGORIES = {
+  Men: {
+    Stitched: {
+      "Single piece": [
+        "Shalwar", "Kameez", "Trouser", "Kurta", "Shirt", "T-shirt", "Polo Shirt", "Pant"
+      ],
+      "2 pc": [
+        "Shirt and pant", "T-shirt and pant", "Track suit", "Trouser and pant", "Shalwar and kameez", "Shalwar & Kurta", "Trouser & Kurta", "Trouser & Kameez"
+      ]
+    },
+    Unstitched: {
+      "Single piece": [
+        "Shalwar", "Kameez", "Trouser", "Kurta", "Shirt", "T-shirt", "Polo Shirt", "Pant"
+      ],
+      "2 pc": [
+        "Shirt and pant", "T-shirt and pant", "Track suit", "Trouser and pant", "Shalwar and kameez", "Shalwar & Kurta", "Trouser & Kurta", "Trouser & Kameez"
+      ]
+    }
+  },
+  Women: {
+    Stitched: {
+      "Single piece": [
+        "Shalwar", "Kameez", "Trouser", "Kurti", "Shirt", "T-shirt", "Polo Shirt", "Pants", "Shameez", "Dupatta", "Shawl", "Pajama", "Abaya"
+      ],
+      "2 pc": [
+        "Shirt and pant", "T-shirt and pant", "Track suit", "Trouser and pant", "Shalwar and kameez", "Shalwar & Kurti", "Trouser & Kurti", "Trouser & Kameez"
+      ],
+      "3 pc": [
+        "Dopatta, Shalwar & Kameez",
+        "Dopatta, Shalwar & Kurti",
+        "Shawl, Shalwar & Kameez",
+        "Shawl, Shalwar & Kurti"
+      ]
+    },
+    Unstitched: {
+      "Single piece": [
+        "Shalwar", "Kameez", "Trouser", "Kurti", "Shirt", "T-shirt", "Polo Shirt", "Pants", "Shameez", "Dupatta", "Shawl", "Pajama", "Abaya"
+      ],
+      "2 pc": [
+        "Shirt and pant", "T-shirt and pant", "Track suit", "Trouser and pant", "Shalwar and kameez", "Shalwar & Kurti", "Trouser & Kurti", "Trouser & Kameez"
+      ],
+      "3 pc": [
+        "Dopatta, Shalwar & Kameez",
+        "Dopatta, Shalwar & Kurti",
+        "Shawl, Shalwar & Kameez",
+        "Shawl, Shalwar & Kurti"
+      ]
+    }
+  }
+};
 const rs = (n: number) => `Rs ${Number(n || 0).toLocaleString('en-US')}`;
 
 const NAV = [
@@ -207,7 +256,42 @@ function ProductFormModal({
   const [price, setPrice] = useState(initial ? String(initial.price) : '');
   const [cost, setCost] = useState(initial ? String(initial.cost) : '');
   const [stock, setStock] = useState(initial ? String(initial.stock) : '');
-  const [category, setCategory] = useState(initial?.category || CATEGORIES[0]);
+
+  // Category hierarchy states
+  const [gender, setGender] = useState<'Men' | 'Women'>('Women');
+  const [stitching, setStitching] = useState<string>('Stitched');
+  const [pieces, setPieces] = useState<string>('Single piece');
+  const [selectedGarments, setSelectedGarments] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (initial?.category) {
+      const parts = initial.category.split(' > ');
+      if (parts.length >= 3) {
+        if (parts[0] === 'Men' || parts[0] === 'Women') setGender(parts[0]);
+        setStitching(parts[1]);
+        setPieces(parts[2]);
+        if (parts[3]) {
+          setSelectedGarments(parts[3].split(', ').map(s => s.trim()).filter(Boolean));
+        }
+      }
+    }
+  }, [initial]);
+
+  useEffect(() => {
+    if (gender === 'Men' && pieces === '3 pc') {
+      setPieces('Single piece');
+    }
+    setSelectedGarments([]);
+  }, [gender, stitching, pieces]);
+
+  const availablePieces = Object.keys(CATEGORIES[gender]?.[stitching] || {});
+  const availableGarments = CATEGORIES[gender]?.[stitching]?.[pieces] || [];
+
+  const toggleGarment = (garment: string) => {
+    setSelectedGarments((prev) =>
+      prev.includes(garment) ? prev.filter((g) => g !== garment) : [...prev, garment]
+    );
+  };
 
   const initialCharts = useMemo(() => {
     if (!initial?.sizeCharts) return {};
@@ -230,7 +314,7 @@ function ProductFormModal({
   const removeExisting = (idx: number) => setExistingImages((imgs) => imgs.filter((_, i) => i !== idx));
   const removeStaged = (idx: number) => setStagedFiles((files) => files.filter((_, i) => i !== idx));
 
-  const canSave = title.trim() && Number(price) > 0;
+  const canSave = title.trim() && Number(price) > 0 && selectedGarments.length > 0;
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -243,13 +327,15 @@ function ProductFormModal({
     }
     const images = [...existingImages, ...uploadedUrls].slice(0, 10);
 
+    const categoryString = `${gender} > ${stitching} > ${pieces} > ${selectedGarments.join(', ')}`;
+
     const payload = {
       title: title.trim(),
       description,
       price: Number(price),
       cost: Number(cost) || 0,
       stock: Number(stock) || 0,
-      category,
+      category: categoryString,
       images,
       sizeCharts,
     };
@@ -339,11 +425,66 @@ function ProductFormModal({
               <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Stock</label>
               <input type="number" min="0" value={stock} onChange={(e) => setStock(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
             </div>
+          </div>
+
+          {/* Multi-level Category Selector */}
+          <div className="space-y-4 border border-neutral-200 p-4 rounded bg-neutral-50/30 mt-4">
+            <h4 className="font-display text-sm font-semibold text-black uppercase tracking-wider">Product Categories</h4>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div>
+                <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1">Gender</label>
+                <select value={gender} onChange={(e) => setGender(e.target.value as any)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white">
+                  <option value="Women">Women</option>
+                  <option value="Men">Men</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1">Stitching</label>
+                <select value={stitching} onChange={(e) => setStitching(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white">
+                  <option value="Stitched">Stitched</option>
+                  <option value="Unstitched">Unstitched</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1">Pieces</label>
+                <select value={pieces} onChange={(e) => setPieces(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black bg-white">
+                  {availablePieces.map((p) => (
+                    <option key={p} value={p}>{p}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
             <div>
-              <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Category</label>
-              <select value={category} onChange={(e) => setCategory(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black">
-                {CATEGORIES.map((c) => <option key={c}>{c}</option>)}
-              </select>
+              <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-2">
+                Select Garment Types (Multiple Allowed) *
+              </label>
+              {availableGarments.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {availableGarments.map((garment: string) => {
+                    const isSelected = selectedGarments.includes(garment);
+                    return (
+                      <button
+                        key={garment}
+                        type="button"
+                        onClick={() => toggleGarment(garment)}
+                        className={`px-3 py-1.5 text-xs font-body border transition-all rounded-sm ${
+                          isSelected 
+                            ? 'bg-black text-white border-black font-medium' 
+                            : 'bg-white text-neutral-700 border-neutral-300 hover:border-black'
+                        }`}
+                      >
+                        {garment}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-xs text-neutral-400 italic">No garment types available.</p>
+              )}
             </div>
           </div>
 
@@ -448,14 +589,14 @@ function SaleModal({ product, onClose }: { product: Product; onClose: () => void
 
 export default function AdminDashboard() {
   const fetchSubmissions = async () => {
-  try {
-    const res = await fetch(`${API_URL}/api/submissions`);
-    const data = await res.json();
-    if (res.ok) setSubmissions(data);
-  } catch (err) {
-    console.error('Could not load submissions:', err);
-  }
-};
+    try {
+      const res = await fetch(`${API_URL}/api/submissions`);
+      const data = await res.json();
+      if (res.ok) setSubmissions(data);
+    } catch (err) {
+      console.error('Could not load submissions:', err);
+    }
+  };
 
   const { user, logout } = useAuthStore();
   const { addToast } = useUIStore();
@@ -465,7 +606,6 @@ export default function AdminDashboard() {
   const { users, fetchUsers, deleteUser, deleteUsersBulk } = useUserStore();
 
   const [submissions, setSubmissions] = useState<any[]>([]);
-  
 
   const [tab, setTab] = useState<(typeof NAV)[number]['key']>('overview');
   const [productModal, setProductModal] = useState<{ mode: 'add' | 'edit'; product: Product | null } | null>(null);
@@ -543,17 +683,17 @@ export default function AdminDashboard() {
   };
 
   const handleDeleteSubmission = async (id: string) => {
-  if (!window.confirm('Delete this inquiry?')) return;
-  try {
-    const res = await fetch(`${API_URL}/api/submissions/${id}`, { method: 'DELETE' });
-    if (res.ok) {
-      setSubmissions((prev) => prev.filter((s) => s.id !== id));
-      addToast('Submission deleted', 'success');
+    if (!window.confirm('Delete this inquiry?')) return;
+    try {
+      const res = await fetch(`${API_URL}/api/submissions/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        setSubmissions((prev) => prev.filter((s) => s.id !== id));
+        addToast('Submission deleted', 'success');
+      }
+    } catch {
+      addToast('Could not delete submission', 'error');
     }
-  } catch {
-    addToast('Could not delete submission', 'error');
-  }
-};
+  };
 
   return (
     <div className="min-h-screen bg-neutral-50 text-black flex">
@@ -686,7 +826,19 @@ export default function AdminDashboard() {
                   {filteredOrders.map((o) => (
                     <React.Fragment key={o.id}>
                       <tr className="border-b border-neutral-100 font-body">
-                        <td className="p-3 font-mono text-xs whitespace-nowrap">{o.id}</td>
+                        <td className="p-3">
+                          <div className="font-mono text-xs whitespace-nowrap">{o.id}</div>
+                          {/* Quick view of sizes in the main table row */}
+                          <div className="flex flex-wrap gap-1 mt-1.5 max-w-[120px]">
+                            {(o.items || []).map((item: any, idx: number) => (
+                              item.size && (
+                                <span key={idx} className="bg-neutral-100 text-neutral-600 border border-neutral-200 text-[9px] uppercase px-1 py-0.5 rounded-sm whitespace-nowrap">
+                                  {item.qty}x {item.size}
+                                </span>
+                              )
+                            ))}
+                          </div>
+                        </td>
                         <td className="p-3">
                           <div className="font-medium">{o.customerName || 'Guest / Unknown'}</div>
                           <div className="text-xs text-neutral-500">{o.customerEmail}</div>
@@ -736,14 +888,30 @@ export default function AdminDashboard() {
                               {/* Items List */}
                               <div className="space-y-2 md:col-span-1">
                                 <h4 className="font-semibold uppercase tracking-wider text-black mb-1">Order Items</h4>
-                                <div className="space-y-1.5 max-h-40 overflow-y-auto pr-2">
+                                <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
                                   {(o.items || []).map((item: any, idx: number) => (
-                                    <div key={idx} className="flex justify-between items-center bg-white p-2 border border-neutral-200">
+                                    <div key={idx} className="flex justify-between items-start bg-white p-3 border border-neutral-200">
                                       <div>
-                                        <p className="font-medium text-black">{item.name || item.title || 'Product'}</p>
-                                        <p className="text-[10px] text-neutral-500">Qty: {item.qty} {item.size ? `/ Size: ${item.size}` : ''}</p>
+                                        <p className="font-medium text-black leading-tight">{item.name || item.title || 'Product'}</p>
+                                        
+                                        {/* Highlighted Size & Color Badges */}
+                                        <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                                          <span className="text-[10px] text-neutral-600 bg-neutral-100 border border-neutral-200 px-1.5 py-0.5 rounded-sm">
+                                            Qty: {item.qty}
+                                          </span>
+                                          {item.size && (
+                                            <span className="text-[10px] font-bold text-white bg-black px-2 py-0.5 rounded-sm uppercase tracking-wider shadow-sm">
+                                              Size: {item.size}
+                                            </span>
+                                          )}
+                                          {item.color && (
+                                            <span className="text-[10px] font-bold text-black bg-neutral-200 px-2 py-0.5 rounded-sm uppercase tracking-wider shadow-sm">
+                                              Color: {item.color}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
-                                      <span className="font-semibold">{rs(item.price * item.qty)}</span>
+                                      <span className="font-semibold mt-1">{rs(item.price * item.qty)}</span>
                                     </div>
                                   ))}
                                 </div>
@@ -907,47 +1075,47 @@ export default function AdminDashboard() {
           </section>
         )}
         {tab === 'submissions' && (
-  <section>
-    <h1 className="font-display text-3xl mb-6">Inquiries & Submissions</h1>
-    <div className="space-y-4">
-      {submissions.length === 0 ? (
-        <div className="bg-white border border-neutral-200 p-8 text-center text-neutral-400 font-body text-sm">
-          No form submissions received yet.
-        </div>
-      ) : (
-        submissions.map((s) => (
-          <div key={s.id} className="bg-white border border-neutral-200 p-5 font-body space-y-3">
-            <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-              <div>
-                <span className="font-semibold text-sm block text-black">{s.name}</span>
-                <span className="text-xs text-neutral-400">{s.email}</span>
-              </div>
-              <div className="text-right">
-                <span className="bg-neutral-100 text-neutral-800 text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 inline-block mb-1">
-                  {s.subject}
-                </span>
-                <span className="text-xs text-neutral-400 block">
-                  {new Date(s.createdAt).toLocaleString()}
-                </span>
-              </div>
+          <section>
+            <h1 className="font-display text-3xl mb-6">Inquiries & Submissions</h1>
+            <div className="space-y-4">
+              {submissions.length === 0 ? (
+                <div className="bg-white border border-neutral-200 p-8 text-center text-neutral-400 font-body text-sm">
+                  No form submissions received yet.
+                </div>
+              ) : (
+                submissions.map((s) => (
+                  <div key={s.id} className="bg-white border border-neutral-200 p-5 font-body space-y-3">
+                    <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+                      <div>
+                        <span className="font-semibold text-sm block text-black">{s.name}</span>
+                        <span className="text-xs text-neutral-400">{s.email}</span>
+                      </div>
+                      <div className="text-right">
+                        <span className="bg-neutral-100 text-neutral-800 text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 inline-block mb-1">
+                          {s.subject}
+                        </span>
+                        <span className="text-xs text-neutral-400 block">
+                          {new Date(s.createdAt).toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                    <p className="text-sm text-neutral-700 whitespace-pre-line bg-neutral-50 p-3 border border-neutral-100">
+                      {s.message}
+                    </p>
+                    <div className="flex justify-end pt-1">
+                      <button
+                        onClick={() => handleDeleteSubmission(s.id)}
+                        className="text-xs text-rose-600 hover:text-rose-800 font-medium uppercase tracking-wider flex items-center gap-1"
+                      >
+                        <Trash2 size={13} /> Delete Inquiry
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
-            <p className="text-sm text-neutral-700 whitespace-pre-line bg-neutral-50 p-3 border border-neutral-100">
-              {s.message}
-            </p>
-            <div className="flex justify-end pt-1">
-              <button
-                onClick={() => handleDeleteSubmission(s.id)}
-                className="text-xs text-rose-600 hover:text-rose-800 font-medium uppercase tracking-wider flex items-center gap-1"
-              >
-                <Trash2 size={13} /> Delete Inquiry
-              </button>
-            </div>
-          </div>
-        ))
-            )}
-          </div>
-        </section>
-      )}
+          </section>
+        )}
       </main>
 
       {productModal && (
