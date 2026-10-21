@@ -36,12 +36,12 @@ function App() {
   // ADDED: Realtime stores initialization & data fetching
   // ==========================================
   useEffect(() => {
-    const cleanupProducts = useProductStore.getState().initRealtime();
+    useProductStore.getState().initRealtime();
     const cleanupOrders = useOrderStore.getState().initRealtime();
     useProductStore.getState().fetchProducts();
     
     return () => { 
-      cleanupProducts(); 
+      // cleanupProducts(); 
       cleanupOrders(); 
     };
   }, []);

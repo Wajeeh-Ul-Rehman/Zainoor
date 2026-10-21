@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { API_URL } from '../../config';
 import {
   LayoutGrid, Package, ShoppingBag, Users, Inbox, Plus, X, Trash2, EyeOff, Eye, Tag,
-  Search, ImagePlus, Download, TrendingUp, AlertTriangle, LogOut, CheckSquare,
+  Search, ImagePlus, Download, TrendingUp, AlertTriangle, LogOut, CheckSquare, Award,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
 import { useUIStore } from '@/stores/uiStore';
@@ -12,6 +12,8 @@ import { useOrderStore, ORDER_STATUSES, type OrderStatus } from '@/stores/orderS
 import { useUserStore } from '@/stores/userStore';
 
 const UPLOADS_BASE = API_URL;
+const AFFILIATE_STATUSES = ['Pending', 'Approved', 'Rejected', 'Suspended'];
+
 export const CATEGORIES = {
   Men: {
     Stitched: {
@@ -110,26 +112,30 @@ function SizeChartsEditor({ sizeCharts, onChange }: { sizeCharts: Record<string,
   };
 
   const handleTitleChange = (formIndex: number, title: string) => {
-    const updatedForms = [...currentForms];
-    updatedForms[formIndex].title = title;
+    const updatedForms = currentForms.map((form, idx) => (idx === formIndex ? { ...form, title } : form));
     onChange({ ...sizeCharts, [activeSize]: updatedForms });
   };
 
   const handleAddRow = (formIndex: number) => {
-    const updatedForms = [...currentForms];
-    updatedForms[formIndex].rows.push({ name: '', value: '' });
+    const updatedForms = currentForms.map((form, idx) =>
+      idx === formIndex ? { ...form, rows: [...form.rows, { name: '', value: '' }] } : form
+    );
     onChange({ ...sizeCharts, [activeSize]: updatedForms });
   };
 
   const handleRemoveRow = (formIndex: number, rowIndex: number) => {
-    const updatedForms = [...currentForms];
-    updatedForms[formIndex].rows = updatedForms[formIndex].rows.filter((_, idx) => idx !== rowIndex);
+    const updatedForms = currentForms.map((form, idx) =>
+      idx === formIndex ? { ...form, rows: form.rows.filter((_, rIdx) => rIdx !== rowIndex) } : form
+    );
     onChange({ ...sizeCharts, [activeSize]: updatedForms });
   };
 
   const handleRowChange = (formIndex: number, rowIndex: number, field: 'name' | 'value', val: string) => {
-    const updatedForms = [...currentForms];
-    updatedForms[formIndex].rows[rowIndex][field] = val;
+    const updatedForms = currentForms.map((form, idx) =>
+      idx === formIndex
+        ? { ...form, rows: form.rows.map((row, rIdx) => (rIdx === rowIndex ? { ...row, [field]: val } : row)) }
+        : form
+    );
     onChange({ ...sizeCharts, [activeSize]: updatedForms });
   };
 
@@ -258,19 +264,18 @@ function ProductFormModal({
   const [cost, setCost] = useState(initial ? String(initial.cost) : '');
   const [stock, setStock] = useState(initial ? String(initial.stock) : '');
 
-  // Category hierarchy states
-  const [gender, setGender] = useState<'Men' | 'Women'>('Women');
-  const [stitching, setStitching] = useState<string>('Stitched');
-  const [pieces, setPieces] = useState<string>('Single piece');
+  const [gender, setGenderState] = useState<'Men' | 'Women'>('Women');
+  const [stitching, setStitchingState] = useState<string>('Stitched');
+  const [pieces, setPiecesState] = useState<string>('Single piece');
   const [selectedGarments, setSelectedGarments] = useState<string[]>([]);
 
   useEffect(() => {
     if (initial?.category) {
       const parts = initial.category.split(' > ');
       if (parts.length >= 3) {
-        if (parts[0] === 'Men' || parts[0] === 'Women') setGender(parts[0]);
-        setStitching(parts[1]);
-        setPieces(parts[2]);
+        if (parts[0] === 'Men' || parts[0] === 'Women') setGenderState(parts[0]);
+        setStitchingState(parts[1]);
+        setPiecesState(parts[2]);
         if (parts[3]) {
           setSelectedGarments(parts[3].split(', ').map(s => s.trim()).filter(Boolean));
         }
@@ -278,15 +283,22 @@ function ProductFormModal({
     }
   }, [initial]);
 
-  useEffect(() => {
-    if (gender === 'Men' && pieces === '3 pc') {
-      setPieces('Single piece');
-    }
+  const setGender = (value: 'Men' | 'Women') => {
+    setGenderState(value);
+    setPiecesState((prevPieces) => (value === 'Men' && prevPieces === '3 pc' ? 'Single piece' : prevPieces));
     setSelectedGarments([]);
-  }, [gender, stitching, pieces]);
+  };
+  const setStitching = (value: string) => {
+    setStitchingState(value);
+    setSelectedGarments([]);
+  };
+  const setPieces = (value: string) => {
+    setPiecesState(value);
+    setSelectedGarments([]);
+  };
 
- const availablePieces = Object.keys((CATEGORIES as any)[gender]?.[stitching] || {});
-const availableGarments = (CATEGORIES as any)[gender]?.[stitching]?.[pieces] || [];
+  const availablePieces = Object.keys((CATEGORIES as any)[gender]?.[stitching] || {});
+  const availableGarments = (CATEGORIES as any)[gender]?.[stitching]?.[pieces] || [];
 
   const toggleGarment = (garment: string) => {
     setSelectedGarments((prev) =>
@@ -315,41 +327,56 @@ const availableGarments = (CATEGORIES as any)[gender]?.[stitching]?.[pieces] || 
   const removeExisting = (idx: number) => setExistingImages((imgs) => imgs.filter((_, i) => i !== idx));
   const removeStaged = (idx: number) => setStagedFiles((files) => files.filter((_, i) => i !== idx));
 
-  const canSave = title.trim() && Number(price) > 0 && selectedGarments.length > 0;
-
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSave) return;
-    setSaving(true);
 
-    let uploadedUrls: string[] = [];
-    if (stagedFiles.length > 0) {
-      uploadedUrls = await uploadImages(stagedFiles);
-    }
-    const images = [...existingImages, ...uploadedUrls].slice(0, 10);
-
-    const categoryString = `${gender} > ${stitching} > ${pieces} > ${selectedGarments.join(', ')}`;
-
-    const payload = {
-      title: title.trim(),
-      description,
-      price: Number(price),
-      cost: Number(cost) || 0,
-      stock: Number(stock) || 0,
-      category: categoryString,
-      images,
-      sizeCharts,
-    };
-
-    const result = initial ? await updateProduct(initial.id, payload) : await createProduct(payload);
-
-    setSaving(false);
-    if (!result.success) {
-      addToast(result.error || 'Could not save the product.', 'error');
+    if (!title.trim()) {
+      addToast('Please enter a product title.', 'error');
       return;
     }
-    addToast(initial ? 'Product updated' : 'Product added', 'success');
-    onClose();
+    if (!(Number(price) > 0)) {
+      addToast('Please enter a valid price greater than 0.', 'error');
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      let uploadedUrls: string[] = [];
+      if (stagedFiles.length > 0) {
+        uploadedUrls = await uploadImages(stagedFiles);
+      }
+      const images = [...existingImages, ...uploadedUrls].slice(0, 10);
+
+      // Build category string with fallback if no specific garment is toggled
+      const categoryString = selectedGarments.length > 0
+        ? `${gender} > ${stitching} > ${pieces} > ${selectedGarments.join(', ')}`
+        : `${gender} > ${stitching} > ${pieces}`;
+
+      const payload = {
+        title: title.trim(),
+        description,
+        price: Number(price),
+        cost: Number(cost) || 0,
+        stock: Number(stock) || 0,
+        category: categoryString,
+        images,
+        sizeCharts: typeof sizeCharts === 'string' ? sizeCharts : JSON.stringify(sizeCharts),
+      };
+
+      const result = initial ? await updateProduct(initial.id, payload) : await createProduct(payload);
+
+      if (!result.success) {
+        addToast(result.error || 'Could not save the product.', 'error');
+      } else {
+        addToast(initial ? 'Product updated successfully' : 'Product added successfully', 'success');
+        onClose();
+      }
+    } catch (err: any) {
+      addToast(err.message || 'Error occurred while saving product.', 'error');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -404,8 +431,8 @@ const availableGarments = (CATEGORIES as any)[gender]?.[stitching]?.[pieces] || 
           </div>
 
           <div>
-            <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Title</label>
-            <input value={title} onChange={(e) => setTitle(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+            <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Title *</label>
+            <input value={title} onChange={(e) => setTitle(e.target.value)} required className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
           </div>
 
           <div>
@@ -413,10 +440,10 @@ const availableGarments = (CATEGORIES as any)[gender]?.[stitching]?.[pieces] || 
             <textarea rows={3} value={description} onChange={(e) => setDescription(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div>
-              <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Price (Rs)</label>
-              <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
+              <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Price (Rs) *</label>
+              <input type="number" min="0" value={price} onChange={(e) => setPrice(e.target.value)} required className="w-full border border-neutral-300 px-3 py-2 font-body text-sm focus:outline-none focus:ring-2 focus:ring-black" />
             </div>
             <div>
               <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-1.5">Cost price (Rs)</label>
@@ -428,7 +455,6 @@ const availableGarments = (CATEGORIES as any)[gender]?.[stitching]?.[pieces] || 
             </div>
           </div>
 
-          {/* Multi-level Category Selector */}
           <div className="space-y-4 border border-neutral-200 p-4 rounded bg-neutral-50/30 mt-4">
             <h4 className="font-display text-sm font-semibold text-black uppercase tracking-wider">Product Categories</h4>
             
@@ -461,7 +487,7 @@ const availableGarments = (CATEGORIES as any)[gender]?.[stitching]?.[pieces] || 
 
             <div>
               <label className="block font-body text-[11px] tracking-[0.12em] uppercase text-neutral-500 mb-2">
-                Select Garment Types (Multiple Allowed) *
+                Select Garment Types (Optional)
               </label>
               {availableGarments.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
@@ -493,7 +519,7 @@ const availableGarments = (CATEGORIES as any)[gender]?.[stitching]?.[pieces] || 
 
           <div className="flex justify-end gap-3 pt-4 border-t border-neutral-200">
             <button type="button" onClick={onClose} className="px-4 py-2 font-body text-sm text-neutral-600 hover:text-black">Cancel</button>
-            <button type="submit" disabled={!canSave || saving} className="px-5 py-2 bg-black text-white font-body text-sm disabled:opacity-40 hover:bg-neutral-800">
+            <button type="submit" disabled={saving} className="px-5 py-2 bg-black text-white font-body text-sm disabled:opacity-40 hover:bg-neutral-800">
               {saving ? 'Saving…' : initial ? 'Save changes' : 'Add product'}
             </button>
           </div>
@@ -599,6 +625,18 @@ export default function AdminDashboard() {
     }
   };
 
+  const fetchAffiliates = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/affiliate`);
+      if (res.ok) {
+        const data = await res.json();
+        setAffiliates(data);
+      }
+    } catch (err) {
+      console.error('Could not load affiliates:', err);
+    }
+  };
+
   const { user, logout } = useAuthStore();
   const { addToast } = useUIStore();
 
@@ -607,6 +645,7 @@ export default function AdminDashboard() {
   const { users, fetchUsers, deleteUser, deleteUsersBulk } = useUserStore();
 
   const [submissions, setSubmissions] = useState<any[]>([]);
+  const [affiliates, setAffiliates] = useState<any[]>([]);
 
   const [tab, setTab] = useState<(typeof NAV)[number]['key']>('overview');
   const [productModal, setProductModal] = useState<{ mode: 'add' | 'edit'; product: Product | null } | null>(null);
@@ -624,7 +663,18 @@ export default function AdminDashboard() {
     fetchProducts();
     fetchUsers();
     fetchSubmissions();
+    fetchAffiliates();
   }, []);
+
+  const affiliateMap = useMemo(() => {
+    const map = new Map<string, string>();
+    affiliates.forEach((a) => {
+      if (a.userId && a.affiliateCode) {
+        map.set(a.userId, a.affiliateCode);
+      }
+    });
+    return map;
+  }, [affiliates]);
 
   const activeOrders = orders.filter((o) => o.orderStatus !== 'Cancelled');
   const totalRevenue = activeOrders.reduce((s, o) => s + o.totalAmount, 0);
@@ -637,7 +687,7 @@ export default function AdminDashboard() {
   }, 0);
   const lowStock = products.filter((p) => !p.hidden && p.stock <= 5);
 
-  const filteredProducts = products.filter((p) => (p.title || p.name || '').toLowerCase().includes(productSearch.toLowerCase()));;
+  const filteredProducts = products.filter((p) => (p.title || p.name || '').toLowerCase().includes(productSearch.toLowerCase()));
   const filteredOrders = orders.filter(
     (o) =>
       (orderStatusFilter === 'All' || o.orderStatus === orderStatusFilter) &&
@@ -656,6 +706,27 @@ export default function AdminDashboard() {
   const handleStatusChange = async (id: string, status: OrderStatus) => {
     const res = await updateOrderStatus(id, status);
     if (!res.success) addToast(res.error || 'Could not update order status', 'error');
+  };
+
+  const handleAffiliateStatusChange = async (id: string, status: string) => {
+    try {
+      const res = await fetch(`${API_URL}/api/affiliate/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status }),
+      });
+      if (res.ok) {
+        setAffiliates((prev) =>
+          prev.map((a) => (a.id === id ? { ...a, status } : a))
+        );
+        addToast('Affiliate status updated', 'success');
+      } else {
+        const err = await res.json();
+        addToast(err.message || 'Could not update affiliate status', 'error');
+      }
+    } catch {
+      addToast('Network error updating affiliate status', 'error');
+    }
   };
 
   const toggleSelectUser = (id: string) =>
@@ -829,7 +900,6 @@ export default function AdminDashboard() {
                       <tr className="border-b border-neutral-100 font-body">
                         <td className="p-3">
                           <div className="font-mono text-xs whitespace-nowrap">{o.id}</div>
-                          {/* Quick view of sizes in the main table row */}
                           <div className="flex flex-wrap gap-1 mt-1.5 max-w-[120px]">
                             {(o.items || []).map((item: any, idx: number) => (
                               item.size && (
@@ -877,7 +947,6 @@ export default function AdminDashboard() {
                         <tr className="bg-neutral-50 border-b border-neutral-200">
                           <td colSpan={6} className="p-6">
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 font-body text-xs">
-                              {/* Customer & Address */}
                               <div className="space-y-2">
                                 <h4 className="font-semibold uppercase tracking-wider text-black mb-1">Customer & Shipping</h4>
                                 <p><strong>Name:</strong> {o.customerName || 'N/A'}</p>
@@ -886,7 +955,6 @@ export default function AdminDashboard() {
                                 <p className="pt-2"><strong>Shipping Address:</strong><br />{o.shippingAddress || 'No address provided'}</p>
                               </div>
 
-                              {/* Items List */}
                               <div className="space-y-2 md:col-span-1">
                                 <h4 className="font-semibold uppercase tracking-wider text-black mb-1">Order Items</h4>
                                 <div className="space-y-2 max-h-40 overflow-y-auto pr-2">
@@ -895,7 +963,6 @@ export default function AdminDashboard() {
                                       <div>
                                         <p className="font-medium text-black leading-tight">{item.name || item.title || 'Product'}</p>
                                         
-                                        {/* Highlighted Size & Color Badges */}
                                         <div className="flex flex-wrap items-center gap-1.5 mt-2">
                                           <span className="text-[10px] text-neutral-600 bg-neutral-100 border border-neutral-200 px-1.5 py-0.5 rounded-sm">
                                             Qty: {item.qty}
@@ -918,7 +985,6 @@ export default function AdminDashboard() {
                                 </div>
                               </div>
 
-                              {/* Tracking History */}
                               <div className="space-y-2">
                                 <h4 className="font-semibold uppercase tracking-wider text-black mb-1">Tracking Log</h4>
                                 <div className="space-y-1 bg-white p-3 border border-neutral-200 max-h-40 overflow-y-auto">
@@ -1029,6 +1095,7 @@ export default function AdminDashboard() {
                     </th>
                     <th className="p-3 text-left">Name</th>
                     <th className="p-3 text-left">Phone</th>
+                    <th className="p-3 text-left">Affiliate Code</th>
                     <th className="p-3 text-right">Orders</th>
                     <th className="p-3 text-right">Total spent</th>
                     <th className="p-3 text-left">Action</th>
@@ -1037,6 +1104,8 @@ export default function AdminDashboard() {
                 <tbody>
                   {filteredUsers.map((u) => {
                     const totalSpent = u.orders.filter((o) => o.orderStatus !== 'Cancelled').reduce((s, o) => s + o.totalAmount, 0);
+                    const code = affiliateMap.get(u.id);
+
                     return (
                       <tr key={u.id} className="border-b border-neutral-100 font-body">
                         <td className="p-3">
@@ -1046,7 +1115,17 @@ export default function AdminDashboard() {
                           <div>{u.fullName}</div>
                           <div className="text-xs text-neutral-400">{u.email}</div>
                         </td>
-                        <td className="p-3">{u.phone}</td>
+                        <td className="p-3">{u.phone || 'N/A'}</td>
+                        <td className="p-3 font-mono">
+                          {code ? (
+                            <span className="inline-flex items-center gap-1 font-semibold text-xs bg-neutral-100 text-black border border-neutral-300 px-2 py-0.5 rounded">
+                              <Award size={12} className="text-black" />
+                              {code}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-neutral-400">—</span>
+                          )}
+                        </td>
                         <td className="p-3 text-right">{u.orders.length}</td>
                         <td className="p-3 text-right whitespace-nowrap">{rs(totalSpent)}</td>
                         <td className="p-3">
@@ -1065,52 +1144,136 @@ export default function AdminDashboard() {
                     );
                   })}
                   {filteredUsers.length === 0 && (
-                    <tr><td colSpan={6} className="p-6 text-center text-neutral-400 font-body text-sm">No users match this search.</td></tr>
+                    <tr><td colSpan={7} className="p-6 text-center text-neutral-400 font-body text-sm">No users match this search.</td></tr>
                   )}
                 </tbody>
               </table>
             </div>
           </section>
         )}
+
         {tab === 'submissions' && (
-          <section>
-            <h1 className="font-display text-3xl mb-6">Inquiries & Submissions</h1>
-            <div className="space-y-4">
-              {submissions.length === 0 ? (
-                <div className="bg-white border border-neutral-200 p-8 text-center text-neutral-400 font-body text-sm">
-                  No form submissions received yet.
+          <section className="space-y-10">
+            <div>
+              <h1 className="font-display text-3xl mb-6">Submissions & Applications</h1>
+              
+              {/* Affiliate Applications */}
+              <div className="mb-8">
+                <h2 className="font-display text-xl mb-4 flex items-center gap-2">
+                  <Award size={20} /> Affiliate Applications ({affiliates.length})
+                </h2>
+                <div className="space-y-4">
+                  {affiliates.length === 0 ? (
+                    <div className="bg-white border border-neutral-200 p-8 text-center text-neutral-400 font-body text-sm">
+                      No affiliate applications submitted yet.
+                    </div>
+                  ) : (
+                    affiliates.map((a) => (
+                      <div key={a.id} className="bg-white border border-neutral-200 p-5 font-body space-y-4">
+                        <div className="flex items-center justify-between border-b border-neutral-100 pb-3 flex-wrap gap-3">
+                          <div>
+                            <span className="font-semibold text-sm block text-black">{a.fullName}</span>
+                            <span className="text-xs text-neutral-500">{a.email} · {a.phone}</span>
+                          </div>
+                          <div className="flex items-center gap-3">
+                            <span className="font-mono text-xs font-bold bg-neutral-100 px-2.5 py-1 rounded border border-neutral-200">
+                              Code: {a.affiliateCode}
+                            </span>
+                            <select
+                              value={a.status || 'Approved'}
+                              onChange={(e) => handleAffiliateStatusChange(a.id, e.target.value)}
+                              className="border border-neutral-300 text-xs px-2.5 py-1.5 font-body focus:outline-none focus:ring-2 focus:ring-black bg-white"
+                            >
+                              {AFFILIATE_STATUSES.map((s) => (
+                                <option key={s} value={s}>{s}</option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-neutral-700 bg-neutral-50 p-3 border border-neutral-100">
+                          <div className="space-y-1">
+                            <p><strong>CNIC:</strong> {a.cnic}</p>
+                            <p><strong>Social Handle:</strong> {a.socialHandle || 'N/A'}</p>
+                            <p><strong>Submitted Date:</strong> {new Date(a.createdAt).toLocaleString()}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p><strong>Bank Name:</strong> {a.bankName}</p>
+                            <p><strong>Account Holder:</strong> {a.bankHolderName}</p>
+                            <p><strong>Account / IBAN:</strong> {a.bankAccountNumber}</p>
+                          </div>
+                        </div>
+
+                        <div>
+                          <span className="font-semibold text-xs text-neutral-500 uppercase tracking-wider block mb-1">
+                            Reason for applying:
+                          </span>
+                          <p className="text-xs text-neutral-700 bg-neutral-50 p-3 border border-neutral-100 whitespace-pre-line">
+                            {a.reason}
+                          </p>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-neutral-700 bg-neutral-50 p-3 border border-neutral-100">
+                          <div className="space-y-1">
+                            <p><strong>Available Balance:</strong> PKR {a.balance || 0}</p>
+                            <p><strong>Total Earnings:</strong> PKR {a.totalEarned || 0}</p>
+                            <p className="pt-2"><strong>CNIC:</strong> {a.cnic}</p>
+                            <p><strong>Social Handle:</strong> {a.socialHandle || 'N/A'}</p>
+                          </div>
+                          <div className="space-y-1">
+                            <p><strong>Bank Name:</strong> {a.bankName}</p>
+                            <p><strong>Account Holder:</strong> {a.bankHolderName}</p>
+                            <p><strong>Account / IBAN:</strong> {a.bankAccountNumber}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
-              ) : (
-                submissions.map((s) => (
-                  <div key={s.id} className="bg-white border border-neutral-200 p-5 font-body space-y-3">
-                    <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
-                      <div>
-                        <span className="font-semibold text-sm block text-black">{s.name}</span>
-                        <span className="text-xs text-neutral-400">{s.email}</span>
-                      </div>
-                      <div className="text-right">
-                        <span className="bg-neutral-100 text-neutral-800 text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 inline-block mb-1">
-                          {s.subject}
-                        </span>
-                        <span className="text-xs text-neutral-400 block">
-                          {new Date(s.createdAt).toLocaleString()}
-                        </span>
-                      </div>
+              </div>
+
+              {/* Contact Form Inquiries */}
+              <div>
+                <h2 className="font-display text-xl mb-4 flex items-center gap-2">
+                  <Inbox size={20} /> General Contact Inquiries ({submissions.length})
+                </h2>
+                <div className="space-y-4">
+                  {submissions.length === 0 ? (
+                    <div className="bg-white border border-neutral-200 p-8 text-center text-neutral-400 font-body text-sm">
+                      No contact form submissions received yet.
                     </div>
-                    <p className="text-sm text-neutral-700 whitespace-pre-line bg-neutral-50 p-3 border border-neutral-100">
-                      {s.message}
-                    </p>
-                    <div className="flex justify-end pt-1">
-                      <button
-                        onClick={() => handleDeleteSubmission(s.id)}
-                        className="text-xs text-rose-600 hover:text-rose-800 font-medium uppercase tracking-wider flex items-center gap-1"
-                      >
-                        <Trash2 size={13} /> Delete Inquiry
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
+                  ) : (
+                    submissions.map((s) => (
+                      <div key={s.id} className="bg-white border border-neutral-200 p-5 font-body space-y-3">
+                        <div className="flex items-center justify-between border-b border-neutral-100 pb-3">
+                          <div>
+                            <span className="font-semibold text-sm block text-black">{s.name}</span>
+                            <span className="text-xs text-neutral-400">{s.email}</span>
+                          </div>
+                          <div className="text-right">
+                            <span className="bg-neutral-100 text-neutral-800 text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 inline-block mb-1">
+                              {s.subject}
+                            </span>
+                            <span className="text-xs text-neutral-400 block">
+                              {new Date(s.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+                        </div>
+                        <p className="text-sm text-neutral-700 whitespace-pre-line bg-neutral-50 p-3 border border-neutral-100">
+                          {s.message}
+                        </p>
+                        <div className="flex justify-end pt-1">
+                          <button
+                            onClick={() => handleDeleteSubmission(s.id)}
+                            className="text-xs text-rose-600 hover:text-rose-800 font-medium uppercase tracking-wider flex items-center gap-1"
+                          >
+                            <Trash2 size={13} /> Delete Inquiry
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
             </div>
           </section>
         )}

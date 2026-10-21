@@ -15,7 +15,6 @@ const tabs = [
 
 const API_BASE = `${API_URL}/api`;
 
-// Once an order reaches one of these stages, the customer can no longer self-cancel.
 const CANCELLABLE_STATUSES = ['Pending', 'In Progress', 'Sent for Packing'];
 
 interface OrderItem {
@@ -32,7 +31,7 @@ interface StatusEvent {
 }
 
 interface Order {
-  id: string; // Matches backend primary key column
+  id: string;
   orderDate: string;
   orderTime: string;
   orderStatus: string;
@@ -40,6 +39,23 @@ interface Order {
   totalAmount: number;
   items: OrderItem[];
   statusHistory?: StatusEvent[];
+}
+
+interface AffiliateData {
+  id: string;
+  userId: string;
+  fullName: string;
+  email: string;
+  phone: string;
+  cnic: string;
+  bankName: string;
+  bankHolderName: string;
+  bankAccountNumber: string;
+  socialHandle?: string;
+  reason: string;
+  affiliateCode: string;
+  status: string;
+  createdAt: string;
 }
 
 function StatusBadge({ status }: { status: string }) {
@@ -78,7 +94,11 @@ export default function UserDashboard() {
   const [loadingOrders, setLoadingOrders] = useState(false);
   const [expandedOrder, setExpandedOrder] = useState<string | null>(null);
 
-  // Load this user's real order history
+  // Affiliate state
+  const [affiliateData, setAffiliateData] = useState<AffiliateData | null>(null);
+  const [loadingAffiliate, setLoadingAffiliate] = useState(false);
+
+  // Load user order history
   useEffect(() => {
     if (!user?.id) return;
     setLoadingOrders(true);
@@ -94,8 +114,26 @@ export default function UserDashboard() {
       });
   }, [user]);
 
-  // Live status updates — if the admin changes a status while this page is open,
-  // it updates instantly without a refresh.
+  // Fetch affiliate info for logged in user
+  useEffect(() => {
+    if (!user?.id) return;
+    setLoadingAffiliate(true);
+    fetch(`${API_URL}/api/affiliate/user/${user.id}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error('Not an affiliate');
+        return res.json();
+      })
+      .then((data) => {
+        setAffiliateData(data);
+        setLoadingAffiliate(false);
+      })
+      .catch(() => {
+        setAffiliateData(null);
+        setLoadingAffiliate(false);
+      });
+  }, [user]);
+
+  // Live status updates
   useEffect(() => {
     const onStatusUpdated = (payload: { id: string; orderStatus: string; statusHistory: StatusEvent[] }) => {
       setOrders((prev) =>
@@ -136,6 +174,11 @@ export default function UserDashboard() {
     } catch {
       addToast('Could not reach the server.', 'error');
     }
+  };
+
+  const handleCopyCode = (text: string) => {
+    navigator.clipboard.writeText(text);
+    addToast('Copied to clipboard!', 'success');
   };
 
   const renderContent = () => {
@@ -239,36 +282,174 @@ export default function UserDashboard() {
 
       case 'affiliate':
         return (
-          <div>
-            <h2 className="font-display text-3xl mb-6">Affiliate Stats</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-              <div className="border border-[#EFEFEF] p-6 text-center">
-                <span className="font-display text-3xl">Rs. 0</span>
-                <p className="font-body text-xs text-[#424242] uppercase tracking-wider mt-1">Total Earnings</p>
-              </div>
-              <div className="border border-[#EFEFEF] p-6 text-center">
-                <span className="font-display text-3xl">0</span>
-                <p className="font-body text-xs text-[#424242] uppercase tracking-wider mt-1">Referrals</p>
-              </div>
-              <div className="border border-[#EFEFEF] p-6 text-center">
-                <span className="font-display text-3xl">0</span>
-                <p className="font-body text-xs text-[#424242] uppercase tracking-wider mt-1">Conversions</p>
-              </div>
-            </div>
-            <div className="border border-[#EFEFEF] p-6">
-              <h3 className="font-body font-semibold mb-2">Your Referral Link</h3>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  readOnly
-                  value="https://zainoor.pk/ref/YOUR-CODE"
-                  className="flex-1 border border-[#EFEFEF] px-4 py-2 font-body text-sm bg-[#EFEFEF]"
-                />
-                <button className="bg-black text-white font-body text-sm px-4 py-2 hover:bg-[#424242] transition-colors">
-                  Copy
+          <div className="space-y-6">
+            <h2 className="font-display text-3xl mb-6">Affiliate Dashboard</h2>
+            {loadingAffiliate ? (
+              <p className="font-body text-[#424242]">Loading affiliate details…</p>
+            ) : !affiliateData ? (
+              <div className="border border-[#EFEFEF] p-8 text-center space-y-4">
+                <h3 className="font-display text-xl">Not Registered Yet</h3>
+                <p className="font-body text-sm text-[#424242] max-w-md mx-auto">
+                  Join the ZaiNoor Affiliate Program today and earn 10% commission on every order placed using your link or code!
+                </p>
+                <button
+                  onClick={() => navigate('/affiliate')}
+                  className="bg-[#FF0000] text-white font-body text-sm font-semibold uppercase px-8 py-3 hover:bg-[#CC0000] transition-colors"
+                >
+                  Apply Now
                 </button>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-6">
+                {/* Status Header */}
+                <div className="border border-[#EFEFEF] p-6 flex items-center justify-between flex-wrap gap-4 bg-neutral-50">
+                  <div>
+                    <span className="font-body text-xs text-neutral-400 uppercase tracking-wider block">Application Status</span>
+                    <span className="font-body font-semibold text-lg flex items-center gap-2 mt-1">
+                      <span className={`inline-block w-2.5 h-2.5 rounded-full ${
+                        affiliateData.status === 'Approved' ? 'bg-green-500' :
+                        affiliateData.status === 'Pending' ? 'bg-yellow-500' :
+                        affiliateData.status === 'Rejected' ? 'bg-red-500' : 'bg-gray-400'
+                      }`} />
+                      {affiliateData.status || 'Approved'}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="font-body text-xs text-neutral-400 uppercase tracking-wider block">Your 6-Digit Code</span>
+                    <span className="font-mono font-bold text-2xl tracking-widest text-[#FF0000]">
+                      {affiliateData.affiliateCode}
+                    </span>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="border border-[#EFEFEF] p-6 text-center">
+                    <span className="font-display text-3xl">PKR {(affiliateData as any).balance || 0}</span>
+                    <p className="font-body text-xs text-[#424242] uppercase tracking-wider mt-1">Available Balance</p>
+                  </div>
+                  <div className="border border-[#EFEFEF] p-6 text-center bg-neutral-50">
+                    <span className="font-display text-3xl">PKR {(affiliateData as any).totalEarned || 0}</span>
+                    <p className="font-body text-xs text-[#424242] uppercase tracking-wider mt-1">Lifetime Earnings</p>
+                  </div>
+                  <div className="border border-[#EFEFEF] p-6 text-center">
+                    <span className="font-display text-3xl">10%</span>
+                    <p className="font-body text-xs text-[#424242] uppercase tracking-wider mt-1">Commission Rate</p>
+                  </div>
+                  <div className="border border-[#EFEFEF] p-6 flex flex-col justify-center items-center gap-3">
+                    <button
+                      onClick={async () => {
+                        try {
+                          const res = await fetch(`${API_URL}/api/affiliate/withdraw`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: user.id, amount: (affiliateData as any).balance })
+                          });
+                          const data = await res.json();
+                          if (data.success) {
+                            addToast('Withdrawal requested successfully!', 'success');
+                            setAffiliateData({ ...affiliateData, balance: 0 } as any);
+                          } else {
+                            addToast(data.message, 'error');
+                          }
+                        } catch {
+                          addToast('Network error.', 'error');
+                        }
+                      }}
+                      disabled={((affiliateData as any).balance || 0) < 2000}
+                      className="bg-black text-white font-body text-sm px-6 py-2 w-full hover:bg-[#424242] disabled:opacity-50 transition-colors"
+                    >
+                      Request Payout
+                    </button>
+                    <p className="font-body text-[10px] text-neutral-400 text-center">Min. threshold PKR 2,000</p>
+                  </div>
+                </div>
+                
+                {/* Referral Tools */}
+                <div className="border border-[#EFEFEF] p-6 space-y-4">
+                  
+
+                  <div>
+                    <h3 className="font-body font-semibold text-sm mb-1">Your 6-Digit Affiliate Code</h3>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        readOnly
+                        value={affiliateData.affiliateCode}
+                        className="flex-1 border border-[#EFEFEF] px-4 py-2 font-mono text-sm bg-[#EFEFEF] font-bold text-black"
+                      />
+                      <button
+                        onClick={() => handleCopyCode(affiliateData.affiliateCode)}
+                        className="bg-black text-white font-body text-sm px-6 py-2 hover:bg-[#424242] transition-colors"
+                      >
+                        Copy Code
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Submitted Application Form Details */}
+                <div className="border border-[#EFEFEF] p-6 space-y-4">
+                  <h3 className="font-display text-lg border-b border-[#EFEFEF] pb-3">Submitted Application Details</h3>
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm font-body">
+                    <div>
+                      <span className="text-xs text-neutral-400 block uppercase tracking-wider">Full Name</span>
+                      <span className="font-medium text-black">{affiliateData.fullName}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-neutral-400 block uppercase tracking-wider">Email Address</span>
+                      <span className="font-medium text-black">{affiliateData.email}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-neutral-400 block uppercase tracking-wider">Phone Number</span>
+                      <span className="font-medium text-black">{affiliateData.phone}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-neutral-400 block uppercase tracking-wider">CNIC Number</span>
+                      <span className="font-medium text-black">{affiliateData.cnic}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-neutral-400 block uppercase tracking-wider">Bank Name</span>
+                      <span className="font-medium text-black">{affiliateData.bankName}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-neutral-400 block uppercase tracking-wider">Account Holder Name</span>
+                      <span className="font-medium text-black">{affiliateData.bankHolderName}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-neutral-400 block uppercase tracking-wider">Account Number / IBAN</span>
+                      <span className="font-medium text-black">{affiliateData.bankAccountNumber}</span>
+                    </div>
+                    <div>
+                      <span className="text-xs text-neutral-400 block uppercase tracking-wider">Social Handle</span>
+                      <span className="font-medium text-black">{affiliateData.socialHandle || 'N/A'}</span>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#EFEFEF]">
+                    <span className="text-xs text-neutral-400 block uppercase tracking-wider mb-1">Reason For Applying</span>
+                    <p className="font-body text-xs text-[#424242] bg-[#EFEFEF] p-3 rounded leading-relaxed whitespace-pre-line">
+                      {affiliateData.reason}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Stats */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <div className="border border-[#EFEFEF] p-6 text-center">
+                    <span className="font-display text-3xl">Rs. 0</span>
+                    <p className="font-body text-xs text-[#424242] uppercase tracking-wider mt-1">Total Earnings</p>
+                  </div>
+                  <div className="border border-[#EFEFEF] p-6 text-center">
+                    <span className="font-display text-3xl">0</span>
+                    <p className="font-body text-xs text-[#424242] uppercase tracking-wider mt-1">Referrals</p>
+                  </div>
+                  <div className="border border-[#EFEFEF] p-6 text-center">
+                    <span className="font-display text-3xl">10%</span>
+                    <p className="font-body text-xs text-[#424242] uppercase tracking-wider mt-1">Commission Rate</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         );
 

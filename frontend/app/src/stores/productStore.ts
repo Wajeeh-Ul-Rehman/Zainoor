@@ -1,162 +1,193 @@
 import { create } from 'zustand';
 import { API_URL } from '../../config';
-import { socket } from '@/lib/socket';
+import { socket } from '@/lib/socket'; // Import your socket instance
 import type { Product, Sale } from '../types';
 
-const API_BASE = `${API_URL}/api/products`;
-
-interface ApiResult {
-  success: boolean;
-  error?: string;
-  product?: Product;
-}
-
-interface ProductState {
+interface ProductStore {
   products: Product[];
   loading: boolean;
   error: string | null;
-  fetchProducts: (includeHidden?: boolean) => Promise<void>;
-  createProduct: (data: Partial<Product>) => Promise<ApiResult>;
-  updateProduct: (id: string, data: Partial<Product>) => Promise<ApiResult>;
-  deleteProduct: (id: string) => Promise<ApiResult>;
-  toggleHide: (id: string) => Promise<void>;
-  setSale: (id: string, sale: Sale) => Promise<void>;
+  fetchProducts: (includeAll?: boolean) => Promise<void>;
+  createProduct: (productData: Partial<Product>) => Promise<{ success: boolean; error?: string; product?: Product }>;
+  updateProduct: (id: string, productData: Partial<Product>) => Promise<{ success: boolean; error?: string; product?: Product }>;
+  deleteProduct: (id: string) => Promise<{ success: boolean; error?: string }>;
+  toggleHide: (id: string) => Promise<{ success: boolean; error?: string }>;
+  setSale: (id: string, sale: Sale) => Promise<{ success: boolean; error?: string }>;
   uploadImages: (files: File[]) => Promise<string[]>;
-  addProduct: (product: Product) => void;
-  initRealtime: () => () => void;
+  initRealtime: () => void; // <-- Add to interface
 }
 
-export const useProductStore = create<ProductState>((set, get) => ({
+export const useProductStore = create<ProductStore>((set) => ({
   products: [],
   loading: false,
   error: null,
 
-  fetchProducts: async () => {
+  // Real-time socket event listeners
+  initRealtime: () => {
+    socket.off('product:created');
+    socket.off('product:updated');
+    socket.off('product:deleted');
+
+    socket.on('product:created', (product: Product) => {
+      set((state) => {
+        if (state.products.some((p) => p.id === product.id)) return state;
+        return { products: [product, ...state.products] };
+      });
+    });
+
+    socket.on('product:updated', (product: Product) => {
+      set((state) => ({
+        products: state.products.map((p) => (p.id === product.id ? product : p)),
+      }));
+    });
+
+    socket.on('product:deleted', (data: { id: string } | string) => {
+      const id = typeof data === 'string' ? data : data.id;
+      set((state) => ({
+        products: state.products.filter((p) => p.id !== id),
+      }));
+    });
+  },
+
+  fetchProducts: async (includeAll = true) => {
+    set({ loading: true, error: null });
     try {
-      const response = await fetch(API_BASE);
-      const parseProduct = (p: any) => ({
-        ...p,
-        images: typeof p.images === 'string' ? JSON.parse(p.images || '[]') : (p.images || []),
-        sizeCharts: typeof p.sizeCharts === 'string' ? JSON.parse(p.sizeCharts || '{}') : (p.sizeCharts || {}),
-        sale: typeof p.sale === 'string' ? JSON.parse(p.sale || '{}') : (p.sale || {}),
-      }); 
-      if (!response.ok) throw new Error('Network response was not ok');
-      const data = await response.json();
-      set({ products: data.map(parseProduct) });
-    } catch (error) {
-      console.error("Failed to fetch products:", error);
+      const url = `${API_URL}/api/products${includeAll ? '?all=true' : ''}`;
+      const res = await fetch(url);
+      if (!res.ok) throw new Error('Failed to fetch products');
+      const data = await res.json();
+      set({ products: data, loading: false });
+    } catch (err: any) {
+      set({ error: err.message, loading: false });
     }
   },
 
-  addProduct: (newProduct) => set((state) => ({ 
-    products: [newProduct, ...state.products.filter(p => p.id !== newProduct.id)] 
-  })),
-
   createProduct: async (productData) => {
     try {
-      const res = await fetch(API_BASE, {
+      const res = await fetch(`${API_URL}/api/products`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: productData.title || productData.name,
-          description: productData.description,
-          price: productData.price,
-          cost: productData.cost || 0,
-          stock: productData.stock,
-          category: productData.category,
-          images: productData.images || (productData.image ? [productData.image] : []),
-          sizeCharts: productData.sizeCharts || {},
-        }),
+        body: JSON.stringify(productData),
       });
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Backend returned non-JSON response.');
+      }
+
       const data = await res.json();
-      if (!res.ok) return { success: false, error: data.message || data.error };
-      
-      get().fetchProducts();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.message || 'Could not create product' };
+      }
+
+      if (data.product) {
+        set((state) => ({ products: [data.product, ...state.products] }));
+      }
       return { success: true, product: data.product };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err.message || 'Network error' };
     }
   },
 
   updateProduct: async (id, productData) => {
     try {
-      const res = await fetch(`${API_BASE}/${id}`, {
+      const res = await fetch(`${API_URL}/api/products/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: productData.title || productData.name,
-          description: productData.description,
-          price: productData.price,
-          cost: productData.cost || 0,
-          stock: productData.stock,
-          category: productData.category,
-          images: productData.images || (productData.image ? [productData.image] : []),
-          sizeCharts: productData.sizeCharts || {},
-        }),
+        body: JSON.stringify(productData),
       });
+
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Backend returned non-JSON response.');
+      }
+
       const data = await res.json();
-      if (!res.ok) return { success: false, error: data.message || data.error };
-      
-      get().fetchProducts();
+      if (!res.ok || !data.success) {
+        return { success: false, error: data.message || 'Could not update product' };
+      }
+
+      if (data.product) {
+        set((state) => ({
+          products: state.products.map((p) => (p.id === id ? data.product : p)),
+        }));
+      }
       return { success: true, product: data.product };
     } catch (err: any) {
-      return { success: false, error: err.message };
+      return { success: false, error: err.message || 'Network error' };
     }
-  }, 
+  },
 
   deleteProduct: async (id) => {
     try {
-      const res = await fetch(`${API_BASE}/${id}`, { method: 'DELETE' });
-      const body = await res.json();
-      if (!res.ok) return { success: false, error: body.message || body.error };
+      const res = await fetch(`${API_URL}/api/products/${id}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!res.ok || (data.success !== undefined && !data.success)) {
+        return { success: false, error: data.message || 'Could not delete product' };
+      }
+
+      set((state) => ({ products: state.products.filter((p) => p.id !== id) }));
       return { success: true };
-    } catch {
-      return { success: false, error: 'Could not reach the server.' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
     }
   },
 
   toggleHide: async (id) => {
-    await fetch(`${API_BASE}/${id}/hide`, { method: 'PATCH' });
+    try {
+      const res = await fetch(`${API_URL}/api/products/${id}/hide`, { method: 'PATCH' });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.message || 'Could not toggle hide status' };
+
+      set((state) => ({
+        products: state.products.map((p) => (p.id === id ? (data.id ? data : { ...p, hidden: !p.hidden }) : p)),
+      }));
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
   },
 
   setSale: async (id, sale) => {
-    await fetch(`${API_BASE}/${id}/sale`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(sale),
-    });
+    try {
+      const res = await fetch(`${API_URL}/api/products/${id}/sale`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(sale),
+      });
+      const data = await res.json();
+      if (!res.ok) return { success: false, error: data.message || 'Could not update sale' };
+
+      set((state) => ({
+        products: state.products.map((p) => (p.id === id ? (data.id ? data : { ...p, sale }) : p)),
+      }));
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error' };
+    }
   },
 
   uploadImages: async (files) => {
-    const formData = new FormData();
-    files.forEach((f) => formData.append('images', f));
-    const res = await fetch(`${API_URL}/api/upload`, { method: 'POST', body: formData });
-    const body = await res.json();
-    return (body.urls as string[]) || [];
-  },
+    try {
+      const formData = new FormData();
+      files.forEach((file) => formData.append('images', file));
 
-  initRealtime: () => {
-    const onCreated = (product: Product) => {
-      set((state) => ({ products: [product, ...state.products] }));
-    };
-    const onUpdated = (product: Product) => {
-      set((state) => ({
-        products: state.products.map((p) => (p.id === product.id ? product : p)),
-      }));
-    };
-    const onDeleted = (payload: any) => {
-      const id = typeof payload === 'string' ? payload : payload.id;
-      set((state) => ({ products: state.products.filter((p) => p.id !== id) }));
-    };
+      const res = await fetch(`${API_URL}/api/products/upload`, {
+        method: 'POST',
+        body: formData,
+      });
 
-    socket.on('product:created', onCreated);
-    socket.on('product:updated', onUpdated);
-    socket.on('product:deleted', onDeleted);
+      const contentType = res.headers.get('content-type');
+      if (!contentType || !contentType.includes('application/json')) {
+        throw new Error('Image upload endpoint returned invalid response.');
+      }
 
-    return () => {
-      socket.off('product:created', onCreated);
-      socket.off('product:updated', onUpdated);
-      socket.off('product:deleted', onDeleted);
-    };
+      const data = await res.json();
+      if (!res.ok || !data.urls) throw new Error(data.message || 'Upload failed');
+      return data.urls;
+    } catch (err: any) {
+      console.error('Image Upload Error:', err);
+      return [];
+    }
   },
 }));

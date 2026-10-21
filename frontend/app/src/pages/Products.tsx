@@ -13,7 +13,7 @@ import { socket } from '@/lib/socket';
 gsap.registerPlugin(ScrollTrigger);
 
 export default function Products() {
-  const { products, fetchProducts, addProduct, updateProduct, deleteProduct } = useProductStore();
+  const { products, fetchProducts, updateProduct, deleteProduct } = useProductStore();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedSort, setSelectedSort] = useState('newest');
@@ -26,7 +26,9 @@ export default function Products() {
   useEffect(() => {
     fetchProducts();
 
-    socket.on('product:created', (newProduct) => addProduct(newProduct));
+    socket.on('product:created', (newProduct) => {
+  useProductStore.setState((state) => ({ products: [newProduct, ...state.products] }));
+});
     socket.on('product:updated', (updatedProduct) => updateProduct(updatedProduct.id, updatedProduct));
     socket.on('product:deleted', (productId) => deleteProduct(productId));
 
@@ -35,7 +37,7 @@ export default function Products() {
       socket.off('product:updated');
       socket.off('product:deleted');
     };
-  }, [fetchProducts, addProduct, updateProduct, deleteProduct]);
+  }, [fetchProducts, updateProduct, deleteProduct]);
 
   useEffect(() => {
     const productId = searchParams.get('product');

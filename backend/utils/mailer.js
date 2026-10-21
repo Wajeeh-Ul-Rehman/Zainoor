@@ -1,6 +1,6 @@
 const nodemailer = require('nodemailer');
 
-const ADMIN_EMAILS = (process.env.ADMIN_NOTIFY_EMAILS || 'abdullahwajeeh074@gmail.com,support@zainoor.com.pk')
+const ADMIN_EMAILS = (process.env.ADMIN_NOTIFY_EMAILS || 'abdullahwajeeh074@gmail.com,support@zainoor.com.pk, noorulain2788@gmail.com')
   .split(',')
   .map((e) => e.trim())
   .filter(Boolean);
@@ -136,7 +136,7 @@ async function notifyNewSubmission(sub) {
 async function sendUserEmail(to, subject, html) {
   try {
     await transporter.sendMail({
-      from: `"Zainoor Support" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
+      from: `"ZaiNoor" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
       to,
       subject,
       html,
@@ -161,5 +161,67 @@ async function sendPasswordResetCode(email, code) {
   await sendUserEmail(email, 'Your Zainoor Password Reset Code', html);
 }
 
+async function sendOrderEmail(toEmail, order) {
+  const itemsListHtml = (order.items || []).map(item => `
+    <tr>
+      <td style="padding: 10px; border-bottom: 1px solid #eee;">
+        <strong>${item.name}</strong><br/>
+        <small style="color: #666;">${item.size ? `Size: \${item.size}` : ''} ${item.color ? `Color: \${item.color}` : ''}</small>
+      </td>
+      <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: center;">${item.qty}</td>
+      <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">Rs. ${(item.price * item.qty).toLocaleString()}</td>
+    </tr>
+  `).join('');
 
-module.exports = {notifyAdmins, notifyNewUser, notifyNewOrder, notifyOrderCancelled, notifyNewSubmission, sendPasswordResetCode };
+  const html = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+      <h2 style="color: #000; border-bottom: 2px solid #000; padding-bottom: 10px;">Thank you for your order!</h2>
+      <p>Hi there,</p>
+      <p>We've received your order and are getting it ready to be shipped. We will notify you when it's on its way.</p>
+      
+      <div style="background: #f9f9f9; padding: 15px; margin: 20px 0;">
+        <p style="margin: 0 0 10px 0;"><strong>Order ID:</strong> ${order.id}</p>
+        <p style="margin: 0 0 10px 0;"><strong>Order Date:</strong> ${order.orderDate}</p>
+        <p style="margin: 0;"><strong>Payment Method:</strong> Cash on Delivery (COD)</p>
+      </div>
+
+      <h3 style="border-bottom: 1px solid #ddd; padding-bottom: 5px;">Order Summary:</h3>
+      <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;">
+        <thead>
+          <tr style="background: #f4f4f4; text-align: left;">
+            <th style="padding: 10px;">Item</th>
+            <th style="padding: 10px; text-align: center;">Qty</th>
+            <th style="padding: 10px; text-align: right;">Total</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${itemsListHtml}
+        </tbody>
+        <tfoot>
+          <tr>
+            <td colspan="2" style="padding: 10px; text-align: right; font-weight: bold;">Grand Total:</td>
+            <td style="padding: 10px; text-align: right; font-weight: bold; font-size: 16px;">Rs. ${Number(order.totalAmount || 0).toLocaleString()}</td>
+          </tr>
+        </tfoot>
+      </table>
+
+      <h3 style="border-bottom: 1px solid #ddd; padding-bottom: 5px;">Shipping Details:</h3>
+      <p style="background: #f9f9f9; padding: 15px; line-height: 1.6;">${order.shippingAddress}</p>
+      
+      <p style="margin-top: 30px; font-size: 12px; color: #666; text-align: center;">
+        If you have any questions, reply to this email or contact us at support@zainoor.com.pk
+      </p>
+    </div>
+  `;
+  await sendUserEmail(toEmail, `Order Confirmation #${order.id} - ZaiNoor`, html);
+}
+
+module.exports = {
+  notifyAdmins, 
+  notifyNewUser, 
+  notifyNewOrder, 
+  notifyOrderCancelled, 
+  notifyNewSubmission, 
+  sendPasswordResetCode,
+  sendOrderEmail // Ensure this is exported for orderController to use
+};

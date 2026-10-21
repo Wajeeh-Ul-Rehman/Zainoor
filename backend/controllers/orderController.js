@@ -2,6 +2,7 @@ const db = require('../db');
 const { generateUserId } = require('../utils/idGenerator');
 const { getIO } = require('../utils/socket');
 const { notifyNewOrder, notifyOrderCancelled } = require('../utils/mailer');
+const { sendOrderEmail } = require('../utils/mailer');
 
 const ORDER_STATUSES = [
   'Pending',
@@ -56,51 +57,107 @@ exports.getAllOrders = (req, res) => {
 };
 
 // POST /api/orders — customer checkout
-exports.createOrder = (req, res) => {
-  const { userId, items, totalAmount, shippingAddress } = req.body;
-  if (!userId || !Array.isArray(items) || items.length === 0 || !totalAmount || !shippingAddress) {
-    return res.status(400).json({ message: 'userId, items, totalAmount, and shippingAddress are required' });
+exports.createOrder = async (req, res) => {
+  const { userId, items, totalAmount, shippingAddress, affiliateCode } = req.body;
+
+  if (!items || items.length === 0 || !shippingAddress) {
+    return res.status(400).json({ success: false, message: 'Invalid order payload.' });
   }
 
   try {
-    const id = generateUserId();
-    const now = new Date();
-    const orderDate = now.toISOString().slice(0, 10);
-    const orderTime = now.toTimeString().slice(0, 8);
-    const statusHistory = JSON.stringify([{ status: 'Pending', at: now.toISOString() }]);
+    const orderId = 'ORD-' + Math.floor(100000 + Math.random() * 900000);
+    const orderDate = new Date().toISOString().split('T')[0];
+    const orderTime = new Date().toLocaleTimeString('en-US', { hour12: false });
+    
+    // 1. Calculate Product Subtotal & Commission
+    const subtotal = items.reduce((sum, item) => sum + (Number(item.price) * Number(item.qty)), 0);
+    let appliedCode = null;
+    let commissionAmount = 0;
 
-    db.prepare(
-      `INSERT INTO orders (id, userId, orderDate, orderTime, orderStatus, shippingAddress, totalAmount, items, statusHistory)
-       VALUES (?, ?, ?, ?, 'Pending', ?, ?, ?, ?)`
-    ).run(id, userId, orderDate, orderTime, shippingAddress, totalAmount, JSON.stringify(items), statusHistory);
+    if (affiliateCode) {
+      // Find affiliate (case-insensitive lookup)
+      const affiliate = db.prepare(`
+        SELECT * FROM affiliates 
+        WHERE UPPER(affiliateCode) = UPPER(?) AND status = 'Approved'
+      `).get(affiliateCode);
 
-    // Best-effort stock decrement
-    const decrementStock = db.prepare(
-      'UPDATE products SET stock = MAX(stock - ?, 0), unitsSold = unitsSold + ? WHERE id = ?'
-    );
-    for (const item of items) {
-      if (item.productId) decrementStock.run(item.qty || 1, item.qty || 1, item.productId);
+      if (affiliate) {
+        appliedCode = affiliate.affiliateCode;
+        commissionAmount = Math.round(subtotal * 0.10); // 10% of subtotal
+
+        // Credit the affiliate's balance in SQLite
+        db.prepare(`
+          UPDATE affiliates 
+          SET balance = balance + ?, totalEarned = totalEarned + ? 
+          WHERE id = ?
+        `).run(commissionAmount, commissionAmount, affiliate.id);
+      }
     }
 
-    const user = db.prepare('SELECT fullName, email, phone FROM users WHERE id = ?').get(userId);
-    const orderData = db.prepare('SELECT * FROM orders WHERE id = ?').get(id);
-    const order = parseOrder({
-      ...orderData,
-      customerName: user?.fullName,
-      customerEmail: user?.email,
+    // 2. Initial status history
+    const statusHistory = JSON.stringify([
+      { status: 'Pending', at: new Date().toISOString() }
+    ]);
+
+    // 3. Save order to database
+    const insert = db.prepare(`
+      INSERT INTO orders (
+        id, userId, orderDate, orderTime, orderStatus, 
+        shippingAddress, totalAmount, items, statusHistory, 
+        affiliateCode, affiliateCommission
+      ) VALUES (?, ?, ?, ?, 'Pending', ?, ?, ?, ?, ?, ?)
+    `);
+
+    insert.run(
+      orderId,
+      userId || 'GUEST',
+      orderDate,
+      orderTime,
+      shippingAddress,
+      totalAmount,
+      JSON.stringify(items),
+      statusHistory,
+      appliedCode,
+      commissionAmount
+    );
+
+    // Fetch newly created order
+    const newOrder = db.prepare('SELECT * FROM orders WHERE id = ?').get(orderId);
+    newOrder.items = JSON.parse(newOrder.items || '[]');
+    newOrder.statusHistory = JSON.parse(newOrder.statusHistory || '[]');
+
+    // Broadcast realtime socket update to Admin Dashboard
+    if (getIO()) {
+      getIO().emit('order:created', newOrder);
+    }
+
+    // 4. Send Confirmation Email (Async)
+    // Extract customer email from shippingAddress string or logged-in user
+    let customerEmail = '';
+    const emailMatch = shippingAddress.match(/Email:\s*([^\s,)]+)/i);
+    if (emailMatch) {
+      customerEmail = emailMatch[1];
+    } else if (userId) {
+      const u = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+      if (u) customerEmail = u.email;
+    }
+
+    if (customerEmail) {
+      sendOrderEmail(customerEmail, newOrder).catch((err) => {
+        console.error('Failed to send confirmation email:', err);
+      });
+    }
+
+    return res.status(201).json({
+      success: true,
+      message: 'Order placed successfully',
+      order: newOrder,
     });
-
-    getIO().emit('order:created', order);
-
-    // Notify admins via detailed email
-    notifyNewOrder(order, user);
-
-    res.status(201).json({ message: 'Order placed', order });
-  } catch (err) {
-    res.status(500).json({ message: 'Could not create order', error: err.message });
+  } catch (error) {
+    console.error('Create order error:', error);
+    return res.status(500).json({ success: false, message: 'Server error placing order', error: error.message });
   }
 };
-
 // PATCH /api/orders/:id/status — admin moves an order through the lifecycle
 exports.updateOrderStatus = (req, res) => {
   const { id } = req.params;

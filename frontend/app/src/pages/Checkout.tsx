@@ -14,16 +14,22 @@ type Step = 'information' | 'payment';
 
 export default function Checkout() {
   const navigate = useNavigate();
-  const { items, subtotal, clearCart } = useCartStore();
+  const { items, subtotal, clearCart } = useCartStore() as any;
   const { addToast } = useUIStore();
-  const { user } = useAuthStore();
+  const { user } = useAuthStore() as any;
   const [step, setStep] = useState<Step>('information');
   const [selectedPayment, setSelectedPayment] = useState('cod');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Affiliate Code State
+  const [affiliateCodeInput, setAffiliateCodeInput] = useState('');
+  const [appliedCode, setAppliedCode] = useState<string | null>(null);
+  const [codeStatus, setCodeStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [isValidatingCode, setIsValidatingCode] = useState(false);
+
   const [formData, setFormData] = useState({
     email: user?.email || '',
-    fullName: user?.fullName || '',
+    fullName: user?.fullName || user?.name || '',
     address: '',
     city: '',
     province: 'Punjab',
@@ -36,20 +42,48 @@ export default function Checkout() {
     window.scrollTo(0, 0);
   };
 
+  const handleApplyCode = async () => {
+    if (!affiliateCodeInput.trim()) return;
+    setIsValidatingCode(true);
+    setCodeStatus(null);
+    try {
+      const res = await fetch(`${API_URL}/api/affiliate/validate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: affiliateCodeInput.trim() }),
+      });
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        setAppliedCode(data.code);
+        setCodeStatus({ type: 'success', message: 'Valid code applied! 10% commission linked.' });
+      } else {
+        setAppliedCode(null);
+        setCodeStatus({ type: 'error', message: data.message || 'Invalid or inactive affiliate code.' });
+      }
+    } catch (err) {
+      setCodeStatus({ type: 'error', message: 'Network error validating code.' });
+    } finally {
+      setIsValidatingCode(false);
+    }
+  };
+
+  const shipping = 300;
+  const currentSubtotal = typeof subtotal === 'function' ? subtotal() : (subtotal || 0);
+  const total = currentSubtotal + shipping;
+
   const handlePlaceOrder = async () => {
     setIsProcessing(true);
     try {
-      // Combine form fields into the required shippingAddress string format
       const fullAddress = `${formData.address}, ${formData.city}, ${formData.province} (Phone: ${formData.phone}, Name: ${formData.fullName}, Email: ${formData.email})`;
 
-      // Map cart items to match backend controller expectations (including productId and qty)
-      const payloadItems = items.map((item) => ({
-        productId: item.product.id,
-        name: item.product.name || (item.product as any).title,
-        price: item.product.salePrice || item.product.price,
-        qty: item.quantity,
-        size: item.size,
-        color: item.color,
+      const payloadItems = items.map((item: any) => ({
+        productId: item.product?.id || item.productId,
+        name: item.product?.title || item.product?.name || item.name,
+        price: item.product?.sale?.active && item.product?.sale?.price ? item.product.sale.price : (item.product?.price || item.price),
+        qty: item.quantity || item.qty || 1,
+        size: item.size || '',
+        color: item.color || '',
       }));
 
       const res = await fetch(`${API_URL}/api/orders`, {
@@ -60,6 +94,7 @@ export default function Checkout() {
           shippingAddress: fullAddress,
           totalAmount: total,
           items: payloadItems,
+          affiliateCode: appliedCode,
         }),
       });
 
@@ -68,7 +103,7 @@ export default function Checkout() {
       if (res.ok) {
         clearCart();
         addToast('Order placed successfully!', 'success');
-        navigate('/dashboard'); // Adjusted to match your user dashboard route
+        navigate('/dashboard');
       } else {
         addToast(data.message || 'Checkout failed', 'error');
       }
@@ -80,10 +115,7 @@ export default function Checkout() {
     }
   };
 
-  const shipping = 300;
-  const total = subtotal() + shipping;
-
-  if (items.length === 0) {
+  if (!items || items.length === 0) {
     return (
       <main className="pt-24 lg:pt-32 pb-20">
         <div className="container-main text-center">
@@ -199,6 +231,7 @@ export default function Checkout() {
                 <div className="flex items-center justify-between">
                   <h2 className="font-display text-2xl">Payment Method</h2>
                   <button
+                    type="button"
                     onClick={() => setStep('information')}
                     className="font-body text-sm text-[#424242] hover:text-black transition-colors"
                   >
@@ -210,6 +243,7 @@ export default function Checkout() {
                   {paymentMethods.map((method) => (
                     <button
                       key={method.id}
+                      type="button"
                       onClick={() => setSelectedPayment(method.id)}
                       className={`w-full flex items-center gap-4 p-4 border transition-colors text-left ${
                         selectedPayment === method.id ? 'border-black' : 'border-[#EFEFEF] hover:border-[#C1C1C1]'
@@ -227,6 +261,7 @@ export default function Checkout() {
                 </div>
 
                 <button
+                  type="button"
                   onClick={handlePlaceOrder}
                   disabled={isProcessing}
                   className="w-full bg-[#FF0000] text-white font-body font-semibold text-sm uppercase py-4 hover:bg-[#CC0000] transition-colors disabled:opacity-50"
@@ -242,25 +277,72 @@ export default function Checkout() {
             <div className="bg-[#EFEFEF] p-6 lg:p-8 lg:sticky lg:top-28">
               <h3 className="font-body font-semibold text-lg mb-6">Order Summary</h3>
               <div className="space-y-4">
-                {items.map((item) => (
-                  <div key={`${item.product.id}-${item.size}-${item.color}`} className="flex gap-4 pb-4 border-b border-[#C1C1C1]">
-                    <div className="w-16 h-20 bg-white flex-shrink-0 overflow-hidden">
-                      <img src={item.product.image} alt={item.product.name} className="w-full h-full object-cover" />
+                {items.map((item: any, idx: number) => {
+                  const product = item.product || {};
+                  const title = product.title || product.name || item.name || 'Product';
+                  const image = product.images?.[0] || product.image || '/placeholder.jpg';
+                  const itemPrice = product.sale?.active && product.sale?.price ? product.sale.price : (product.price || item.price || 0);
+                  const qty = item.quantity || item.qty || 1;
+
+                  return (
+                    <div key={`${product.id || idx}-${item.size}-${item.color}`} className="flex gap-4 pb-4 border-b border-[#C1C1C1]">
+                      <div className="w-16 h-20 bg-white flex-shrink-0 overflow-hidden">
+                        <img src={image} alt={title} className="w-full h-full object-cover" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-body font-medium text-sm truncate">{title}</h4>
+                        <p className="font-body text-xs text-[#424242]">{item.color || 'Standard'} / {item.size || 'Standard'} / Qty: {qty}</p>
+                        <p className="font-body text-sm mt-1">
+                          Rs. {(itemPrice * qty).toLocaleString()}
+                        </p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-body font-medium text-sm truncate">{item.product.name}</h4>
-                      <p className="font-body text-xs text-[#424242]">{item.color} / {item.size} / Qty: {item.quantity}</p>
-                      <p className="font-body text-sm mt-1">
-                        Rs. {((item.product.salePrice || item.product.price) * item.quantity).toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
+
+              {/* Affiliate Code Section */}
+              <div className="mt-6 border-b border-[#C1C1C1] pb-6">
+                <label className="font-body text-xs uppercase tracking-wider text-[#424242] mb-2 block">Affiliate Code (Optional)</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    disabled={!!appliedCode || isValidatingCode}
+                    value={appliedCode || affiliateCodeInput}
+                    onChange={(e) => setAffiliateCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Enter code"
+                    className="flex-1 border border-[#C1C1C1] px-3 py-2 font-body text-sm focus:outline-none focus:border-black disabled:bg-neutral-200"
+                  />
+                  {!appliedCode ? (
+                    <button 
+                      type="button"
+                      onClick={handleApplyCode}
+                      disabled={isValidatingCode || !affiliateCodeInput}
+                      className="bg-black text-white font-body text-xs uppercase px-4 py-2 hover:bg-[#424242] disabled:opacity-50 transition-colors"
+                    >
+                      {isValidatingCode ? '...' : 'Apply'}
+                    </button>
+                  ) : (
+                    <button 
+                      type="button"
+                      onClick={() => { setAppliedCode(null); setCodeStatus(null); setAffiliateCodeInput(''); }}
+                      className="bg-[#EFEFEF] border border-[#C1C1C1] text-[#424242] font-body text-xs uppercase px-4 py-2 hover:bg-[#C1C1C1] transition-colors"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+                {codeStatus && (
+                  <p className={`font-body text-xs mt-2 ${codeStatus.type === 'success' ? 'text-green-700 font-medium' : 'text-rose-600'}`}>
+                    {codeStatus.message}
+                  </p>
+                )}
+              </div>
+
               <div className="mt-6 space-y-2">
                 <div className="flex justify-between font-body text-sm">
                   <span>Subtotal</span>
-                  <span>Rs. {subtotal().toLocaleString()}</span>
+                  <span>Rs. {currentSubtotal.toLocaleString()}</span>
                 </div>
                 <div className="flex justify-between font-body text-sm">
                   <span>Shipping</span>
